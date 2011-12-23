@@ -1,0 +1,1 @@
+monitor a folder for file changes and automatically (re)index files on it. Searches can be made through an Akka client.
