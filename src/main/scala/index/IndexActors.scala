@@ -1,7 +1,8 @@
 package co.torri.reindxr.index
 
-import java.io._
-import akka.actor._
+import java.io.File
+
+import akka.actor.Actor
 
 
 case class SearchIndexResult(query: String, files: List[File])

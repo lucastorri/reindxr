@@ -1,12 +1,20 @@
 package co.torri.reindxr
 
-import filemon._
-import index._
-import FilesIndex.indexFrom
-
-import akka.actor._
-import Actor._
 import java.io.File
+
+import akka.actor.Actor.actorOf
+import akka.actor.Actor.remote
+import akka.actor.actorRef2Scala
+import filemon.FileCreated
+import filemon.FileDeleted
+import filemon.FileEvent
+import filemon.FileModified
+import filemon.FileMonitor
+import index.FilesIndex.indexFrom
+import index.FilesIndexerActor
+import index.IndexSearcherActor
+import index.InsertIndex
+import index.RemoveIndex
 
 
 object Main {

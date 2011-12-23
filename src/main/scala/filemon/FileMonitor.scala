@@ -1,8 +1,10 @@
 package co.torri.reindxr.filemon
 
+import java.io.File
+import java.lang.Thread.sleep
+
+import scala.Array.canBuildFrom
 import scala.annotation.tailrec
-import java.io._
-import Thread.sleep
 
 
 sealed trait FileEvent {

@@ -1,16 +1,17 @@
 package co.torri.reindxr
 
-import co.torri.reindxr.index._
-import akka.actor.Actor
-import Actor._
-import akka.event.EventHandler
+import akka.actor.Actor.remote
+import akka.actor.Actor.toAnyOptionAsTypedOption
+import akka.actor.actorRef2Scala
 import akka.actor.ActorRef
+import co.torri.reindxr.index.SearchIndex
+import co.torri.reindxr.index.SearchIndexResult
 
 
 package object client {
 
     class ReindxrClient(private val client: ActorRef) {
-        
+
         def search(query: String) = 
             (client !! SearchIndex(readLine)).as[SearchIndexResult]
             

@@ -1,18 +1,26 @@
 package co.torri.reindxr.index
 
-import java.io._
-import scala.io.Source._
-import grizzled.slf4j._
-import org.apache.lucene.analysis._
-import org.apache.lucene.analysis.standard._
-import org.apache.lucene.document._
-import org.apache.lucene.index._
-import org.apache.lucene.store._
-import org.apache.lucene.util.Version._
-import org.apache.lucene.queryParser._
-import org.apache.lucene.search._
-import org.apache.lucene.store.FSDirectory._
-import org.apache.lucene.index.IndexWriterConfig.OpenMode._
+import java.io.File
+import java.io.StringReader
+
+import scala.Array.canBuildFrom
+import scala.io.Source.fromFile
+
+import org.apache.lucene.analysis.standard.StandardAnalyzer
+import org.apache.lucene.document.Document
+import org.apache.lucene.document.Field
+import org.apache.lucene.index.IndexWriterConfig.OpenMode.CREATE_OR_APPEND
+import org.apache.lucene.index.IndexReader
+import org.apache.lucene.index.IndexWriter
+import org.apache.lucene.index.IndexWriterConfig
+import org.apache.lucene.index.Term
+import org.apache.lucene.queryParser.QueryParser
+import org.apache.lucene.search.IndexSearcher
+import org.apache.lucene.store.FSDirectory.open
+import org.apache.lucene.store.Directory
+import org.apache.lucene.util.Version.LUCENE_31
+
+import grizzled.slf4j.Logger
 
 
 object FilesIndex {
