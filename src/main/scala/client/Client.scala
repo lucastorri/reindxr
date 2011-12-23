@@ -1,24 +1,22 @@
-package co.torri.reindxr.client
+package co.torri.reindxr
 
 import co.torri.reindxr.index._
 import akka.actor.Actor
 import Actor._
 import akka.event.EventHandler
+import akka.actor.ActorRef
 
 
-object Client {
+package object client {
 
-	def run() {
-	    val actor = remote.actorFor("search-service", "localhost", 8123)
-		while (true) {
-			println("search> ")
-		    val result = (actor !! SearchIndex(readLine)).as[SearchIndexResult]
-			println(result)
-		}
-	}
-	
-	def main(args: Array[String]) {
-		run
-	}
+    class ReindxrClient(private val client: ActorRef) {
+        
+        def search(query: String) = 
+            (client !! SearchIndex(readLine)).as[SearchIndexResult]
+            
+    } 
+    
+    def connect(server: String, port: Int) =
+        new ReindxrClient(remote.actorFor("search-service", server, port))
 
 }
