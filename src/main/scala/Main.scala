@@ -24,6 +24,9 @@ object Main {
 		
 		val dataFolder = new File(args(0))
 		val indexFolder = new File(args(1))
+		val serverAddress = args.lift(2).getOrElse("localhost")
+		val serverPort = args.lift(3).map(_.toInt).getOrElse(8123)
+		
 		val index = indexFrom(indexFolder)
 
 		val indexer = actorOf(FilesIndexerActor(index)).start
@@ -33,7 +36,7 @@ object Main {
 			case FileDeleted(file) => indexer ! RemoveIndex(file)
 		}
 		
-	    remote.start("localhost", 8123)
+	    remote.start(serverAddress, serverPort)
 		remote.register("search-service", actorOf(IndexSearcherActor(index)))
 		
 		val monitor = FileMonitor(dataFolder, dataEventHandler)
