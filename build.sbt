@@ -1,3 +1,5 @@
+import AssemblyKeys._
+
 organization := "co.torri"
 
 name := "reindxr"
@@ -13,6 +15,7 @@ libraryDependencies ++= Seq(
   "se.scalablesolutions.akka" % "akka-remote" % "1.1.3",
   "org.slf4j" % "slf4j-api" % "1.6.1",
   "ch.qos.logback" % "logback-classic" % "0.9.29",
+  "org.clapper" %% "grizzled-slf4j" % "0.6.6",
   "org.streum" % "configrity_2.9.0" % "0.7.0",
   "org.apache.yoko" % "yoko-spec-corba" % "1.3"
 )
@@ -24,3 +27,5 @@ resolvers += "Akka Maven2 Repository" at "http://akka.io/repository/"
 resolvers += "Scala Tools Snapshots" at "http://scala-tools.org/repo-snapshots/"
 
 resolvers += "GuiceyFruit Release Repository" at "http://guiceyfruit.googlecode.com/svn/repo/releases/"
+
+seq(assemblySettings: _*)
