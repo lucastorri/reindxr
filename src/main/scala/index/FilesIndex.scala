@@ -35,57 +35,59 @@ case class FilesIndex(factory: IndexFactory) {
 		def timestamp = file.lastModified
 	}
 	private implicit def file2fileId(file: File) = new FileId(file)
+	
+	
+	private def withWriter(exec: IndexWriter => Unit) = {
+	    val writer = factory.newWriter
+	    exec(writer)
+	    writer.close
+	}
 
-    def insert(file: File) : Unit = try {
+    def insert(file: File) : Unit = try withWriter { writer =>
     
 		if (file.timestamp <= timestampFor(file)) {
-			logger.warn("Already latest version")
+			logger.info("Already latest version")
 			return
 		}
-	
-      	val writer = factory.newWriter
-      	if (!factory.indexExists) {
-     		writer.deleteDocuments(new Term(identifierField, file.id))
-      	}
+      	remove(file)
      	writer.addDocument(file)
-      	writer.close
     
     } catch { case e => logger.error("Error when indexing", e) }
 	
-	private def timestampFor(f: File) : Long = {
-		if (!factory.indexExists) {
-			logger.warn("File not indexed")
-			return 0L
-		}
+	def remove(file: File) = try withWriter { writer =>
 		
-		val searcher = factory.newSearcher
-		val timestamp = searcher.search(queryParser.parse(timestampField + ":" + f.id), searchLimit)
-			.scoreDocs.map(d => searcher.doc(d.doc)).
-			firstOption.map(_.getFieldable(timestampField).stringValue.toLong).getOrElse(0L)
-		searcher.close
-		timestamp
-	}
-	
-	def remove(file: File) = try {
-		
-      	val writer = factory.newWriter
       	if (!factory.indexExists) {
      		writer.deleteDocuments(new Term(identifierField, file.id))
       	}
-      	writer.close
 	
 	} catch { case e => logger.error("Error when indexing", e) }
+	
+	private def withSearcher[T](exec: IndexSearcher => T) = {
+	    val searcher = factory.newSearcher
+	    val ret = exec(searcher)
+	    searcher.close
+	    ret
+	}
+	
+	private def timestampFor(f: File) : Long = withSearcher { searcher =>
+		if (!factory.indexExists) {
+			logger.info("File not indexed")
+			return 0L
+		}
+		
+		searcher.search(queryParser.parse(timestampField + ":" + f.id), searchLimit)
+			.scoreDocs.map(d => searcher.doc(d.doc)).
+			firstOption.map(_.getFieldable(timestampField).stringValue.toLong).getOrElse(0L)
+	}
 
-    def search(query: String): List[File] = try {
+    def search(query: String): List[File] = try withSearcher { searcher =>
     
 	    if (!factory.indexExists) {
-	        logger.warn("Index doesn't exist")
+	        logger.info("Index doesn't exist")
 	        return List()
 	    }
-	    val searcher = factory.newSearcher
 	    val results = searcher.search(queryParser.parse(contentField + ":" + query), searchLimit)
 	    val files = results.scoreDocs.map(_.doc).distinct.map(docId => document2File(searcher.doc(docId)))
-	    searcher.close
 
 	    files.distinct.toList
     
