@@ -16,6 +16,8 @@ case class FileModified(file: File) extends FileEvent
 
 case class FileMonitor(dir: File, callback: FileEvent => Unit) {
 	
+    private var run = true;
+    
 	private type FileStamp = Map[String, Long]
 
 	private val checkInterval = 10000
@@ -43,8 +45,11 @@ case class FileMonitor(dir: File, callback: FileEvent => Unit) {
 				
 		sleep(checkInterval)
 				
-		realCheck(updatedFiles)
+		if (run) realCheck(updatedFiles)
 	}
+	
+	def stop =
+	    run = false
 
 	def start =
 		realCheck(Map()) // save and get from, maybe, lucene the last known time that the file was modified

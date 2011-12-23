@@ -3,6 +3,7 @@ package co.torri.reindxr
 import java.io.File
 
 import akka.actor.Actor.actorOf
+import akka.actor.Actor.registry
 import akka.actor.Actor.remote
 import akka.actor.actorRef2Scala
 import filemon.FileCreated
@@ -35,7 +36,16 @@ object Main {
 	    remote.start("localhost", 8123)
 		remote.register("search-service", actorOf(IndexSearcherActor(index)))
 		
-		FileMonitor(dataFolder, dataEventHandler).start
+		val monitor = FileMonitor(dataFolder, dataEventHandler)
+		
+		Runtime.getRuntime.addShutdownHook(new Thread {
+            override def run = {
+                monitor.stop
+                registry.shutdownAll
+            }
+        })
+		
+		monitor.start
 	}
 	
 }
