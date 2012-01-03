@@ -85,7 +85,7 @@ case class FilesIndex(factory: IndexFactory) {
 		
 		searcher.search(queryParser.parse(timestampField + ":" + f.id), searchLimit)
 			.scoreDocs.map(d => searcher.doc(d.doc)).
-			firstOption.map(_.getFieldable(timestampField).stringValue.toLong).getOrElse(0L)
+			headOption.map(_.getFieldable(timestampField).stringValue.toLong).getOrElse(0L)
 	}
 
     def search(query: String): List[File] = try withSearcher { searcher =>
