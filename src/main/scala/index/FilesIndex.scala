@@ -53,7 +53,7 @@ case class FilesIndex(factory: IndexFactory) {
 
     def insert(file: File) : Unit = try withWriter { writer =>
     
-		if (file.timestamp <= timestampFor(file)) {
+		if (factory.indexExists && file.timestamp <= timestampFor(file)) {
 			logger.info("Already latest version")
 			return
 		}

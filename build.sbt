@@ -29,3 +29,5 @@ resolvers += "Scala Tools Snapshots" at "http://scala-tools.org/repo-snapshots/"
 resolvers += "GuiceyFruit Release Repository" at "http://guiceyfruit.googlecode.com/svn/repo/releases/"
 
 seq(assemblySettings: _*)
+
+scalacOptions += "-deprecation"
