@@ -36,8 +36,9 @@ object Main {
 			case FileDeleted(file) => indexer ! RemoveIndex(file)
 		}
 		
-	    remote.start(serverAddress, serverPort)
-		remote.register("search-service", actorOf(IndexSearcherActor(index)))
+	    remote
+	    	.start(serverAddress, serverPort)
+	    	.register("search-service", actorOf(IndexSearcherActor(index)))
 		
 		val monitor = FileMonitor(dataFolder, dataEventHandler)
 		
