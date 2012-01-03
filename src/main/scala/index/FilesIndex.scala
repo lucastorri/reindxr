@@ -6,6 +6,7 @@ import java.io.StringReader
 import scala.Array.canBuildFrom
 import scala.io.Source.fromFile
 
+import org.apache.lucene.analysis.SimpleAnalyzer
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.Document
 import org.apache.lucene.document.Field
@@ -119,7 +120,7 @@ case class IndexFactory(indexPath: Directory) {
   	private val version = LUCENE_31
   
   	private def analyzer =
-	 	new StandardAnalyzer(version)
+	 	new SimpleAnalyzer(version)
 
 	private def config =
     	new IndexWriterConfig(version, analyzer).setOpenMode(CREATE_OR_APPEND)
@@ -130,8 +131,12 @@ case class IndexFactory(indexPath: Directory) {
   	def newSearcher =
     	new IndexSearcher(indexPath)
 
-    def newQueryParser(fieldName: String) =
-    	new QueryParser(version, fieldName, analyzer)
+    def newQueryParser(fieldName: String) = {
+		val parser = new QueryParser(version, fieldName, analyzer)
+		parser.setDefaultOperator(QueryParser.AND_OPERATOR)
+		parser
+	}
+    	
   
     def indexExists =
     	IndexReader.indexExists(indexPath)
