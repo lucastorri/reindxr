@@ -47,7 +47,7 @@ case class FilesIndex(factory: IndexFactory) {
 	
 	private implicit def writer = factory.newWriter
 	
-	private def withWriter(exec: IndexWriter => Unit, close: Boolean = true)(implicit writer: IndexWriter) = {
+	private def withWriter(exec: IndexWriter => Unit)(implicit writer: IndexWriter, close: Boolean = true) = {
 	    exec(writer)
 	    if (close) writer.close
 	}
@@ -59,17 +59,17 @@ case class FilesIndex(factory: IndexFactory) {
 			logger.info("Already latest version")
 			return
 		}
-      	doRemove(file, false)(writer)
+      	doRemove(file)(writer, false)
      	writer.addDocument(file)
     
     } catch { case e => logger.error("Error when indexing", e) }
 	
 	def remove(file: File) : Unit = doRemove(file)
-	private def doRemove(file: File, close: Boolean = true)(implicit writer: IndexWriter) = if (factory.indexExists) try withWriter ({ writer =>
+	private def doRemove(file: File)(implicit writer: IndexWriter, close: Boolean = true) = if (factory.indexExists) try withWriter { writer =>
 		
  		writer.deleteDocuments(new Term(identifierField, file.id))
 	
-	}, close) catch { case e => logger.error("Error when indexing", e) }
+	} catch { case e => logger.error("Error when indexing", e) }
 	
 	private def withSearcher[T](exec: IndexSearcher => T) = {
 	    val searcher = factory.newSearcher
