@@ -45,31 +45,31 @@ case class FilesIndex(factory: IndexFactory) {
 	}
 	private implicit def file2fileId(file: File) = new FileId(file)
 	
+	private implicit def writer = factory.newWriter
 	
-	private def withWriter(exec: IndexWriter => Unit) = {
-	    val writer = factory.newWriter
+	private def withWriter(exec: IndexWriter => Unit, close: Boolean = true)(implicit writer: IndexWriter) = {
 	    exec(writer)
-	    writer.close
+	    if (close) writer.close
 	}
 
-    def insert(file: File) : Unit = try withWriter { writer =>
+	def insert(file: File) : Unit = doInsert(file)
+    private def doInsert(file: File)(implicit writer: IndexWriter) : Unit = try withWriter { writer =>
     
 		if (factory.indexExists && file.timestamp <= timestampFor(file)) {
 			logger.info("Already latest version")
 			return
 		}
-      	remove(file)
+      	doRemove(file, false)(writer)
      	writer.addDocument(file)
     
     } catch { case e => logger.error("Error when indexing", e) }
 	
-	def remove(file: File) = try withWriter { writer =>
+	def remove(file: File) : Unit = doRemove(file)
+	private def doRemove(file: File, close: Boolean = true)(implicit writer: IndexWriter) = if (factory.indexExists) try withWriter ({ writer =>
 		
-      	if (!factory.indexExists) {
-     		writer.deleteDocuments(new Term(identifierField, file.id))
-      	}
+ 		writer.deleteDocuments(new Term(identifierField, file.id))
 	
-	} catch { case e => logger.error("Error when indexing", e) }
+	}, close) catch { case e => logger.error("Error when indexing", e) }
 	
 	private def withSearcher[T](exec: IndexSearcher => T) = {
 	    val searcher = factory.newSearcher
