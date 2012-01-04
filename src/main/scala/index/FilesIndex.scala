@@ -139,7 +139,7 @@ case class FilesIndex(factory: IndexFactory) {
 		val result =
 			if (query.trim.isEmpty) None
 			else {
-				val fq = highlighter.getFieldQuery(queryParser.parse(contentField + ":" + query)) // <<<<<<< 
+				val fq = highlighter.getFieldQuery(queryParser.parse(contentField + ":" + query))
 				results.scoreDocs.headOption.flatMap { result =>
 					val hls = highlighter.getBestFragments(fq, searcher.getIndexReader, result.doc, contentField, Int.MaxValue, highlightLimit)
 					hls.headOption
