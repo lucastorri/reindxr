@@ -81,7 +81,7 @@ case class TagFragmentBuilder(snippetsOnly: Boolean, preTag: Int => String, post
 		}
 		
 		//maxNumFragments
-		return fragments.toArray
+		fragments.toArray
 	}
 	
 }

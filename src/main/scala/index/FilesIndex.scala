@@ -131,11 +131,22 @@ case class FilesIndex(factory: IndexFactory) {
 		val q = idSearchQueryParser.parse(identifierField + ":" + file)
 	    val results = searcher.search(q, searchLimit)
 		val highlighter = factory.newHighlighter(false)
-      	val fq = highlighter.getFieldQuery(queryParser.parse(contentField + ":" + query))
-		results.scoreDocs.headOption.flatMap { result =>
-			val hls = highlighter.getBestFragments(fq, searcher.getIndexReader, result.doc, contentField, Int.MaxValue, highlightLimit)
-			hls.headOption
-		}.getOrElse("")
+		
+		if (results.scoreDocs.isEmpty) {
+			return ""
+		}
+		
+		val result =
+			if (query.trim.isEmpty) None
+			else {
+				val fq = highlighter.getFieldQuery(queryParser.parse(contentField + ":" + query)) // <<<<<<< 
+				results.scoreDocs.headOption.flatMap { result =>
+					val hls = highlighter.getBestFragments(fq, searcher.getIndexReader, result.doc, contentField, Int.MaxValue, highlightLimit)
+					hls.headOption
+				}
+			}
+		
+		result.orElse(Option(searcher.getIndexReader.document(results.scoreDocs.head.doc).get(contentField))).getOrElse("")
 				
 	} catch { case e => logger.error("Error when highlighting " + file + "with query " + query, e); "" }
     
