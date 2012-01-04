@@ -56,27 +56,27 @@ case class FilesIndex(factory: IndexFactory) {
     private val queryParser = factory.newQueryParser(contentField)
 	private val idSearchQueryParser = factory.newQueryParser(identifierField, factory.newKeywordAnalyzer)
 	
-	private implicit def writer = factory.newWriter
+	private implicit lazy val writer = factory.newWriter
 	
-	private def withWriter(exec: IndexWriter => Unit)(implicit writer: IndexWriter, close: Boolean = true) = {
+	private def withWriter(exec: IndexWriter => Unit)(implicit writer: IndexWriter) = {
 	    exec(writer)
-	    if (close) writer.close
+		writer.commit
 	}
 
 	def insert(file: FileDoc) : Unit = doInsert(file)
-    private def doInsert(file: FileDoc)(implicit writer: IndexWriter) : Unit = try withWriter { writer =>
+    private def doInsert(file: FileDoc) : Unit = try withWriter { writer =>
     
 		if (factory.indexExists && file.timestamp <= timestampFor(file)) {
 			logger.info("Already latest version")
 			return
 		}
-      	doRemove(file)(writer, false)
+      	doRemove(file)
      	writer.addDocument(file)
     
     } catch { case e => logger.error("Error when indexing", e) }
 	
 	def remove(file: FileDoc) : Unit = doRemove(file)
-	private def doRemove(file: FileDoc)(implicit writer: IndexWriter, close: Boolean = true) = if (factory.indexExists) try withWriter { writer =>
+	private def doRemove(file: FileDoc) = if (factory.indexExists) try withWriter { writer =>
 		
  		writer.deleteDocuments(new Term(identifierField, file.id))
 	
@@ -147,6 +147,11 @@ case class FilesIndex(factory: IndexFactory) {
       	doc
     }
 	
+	def close = {
+		writer.close
+		factory.close	
+	}
+	
 }
 
 case class IndexFactory(indexPath: Directory) {
@@ -186,4 +191,7 @@ case class IndexFactory(indexPath: Directory) {
     def indexExists =
     	IndexReader.indexExists(indexPath)
     
+	
+	def close =
+		indexPath.close
 }

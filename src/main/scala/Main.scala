@@ -46,6 +46,7 @@ object Main {
             override def run = {
                 monitor.stop
                 registry.shutdownAll
+				index.close
             }
         })
 		
