@@ -6,7 +6,10 @@ import java.io.StringReader
 
 import scala.io.Source.fromFile
 
+import org.apache.lucene.analysis.Analyzer
+import org.apache.lucene.analysis.KeywordAnalyzer
 import org.apache.lucene.analysis.SimpleAnalyzer
+import org.apache.lucene.analysis.en.EnglishAnalyzer
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.Document
 import org.apache.lucene.document.Field
@@ -51,6 +54,7 @@ case class FilesIndex(factory: IndexFactory) {
 	private val timestampField = "timestamp"
     private val contentField = "contents"
     private val queryParser = factory.newQueryParser(contentField)
+	private val idSearchQueryParser = factory.newQueryParser(identifierField, factory.newKeywordAnalyzer)
 	
 	private implicit def writer = factory.newWriter
 	
@@ -124,10 +128,10 @@ case class FilesIndex(factory: IndexFactory) {
 	        return ""
 	    }
 		
-		val q = queryParser.parse(identifierField + ":" + file + " " + contentField + ":" + query)
+		val q = idSearchQueryParser.parse(identifierField + ":" + file)
 	    val results = searcher.search(q, searchLimit)
 		val highlighter = factory.newHighlighter(false)
-      	val fq = highlighter.getFieldQuery(q)
+      	val fq = highlighter.getFieldQuery(queryParser.parse(contentField + ":" + query))
 		results.scoreDocs.headOption.flatMap { result =>
 			val hls = highlighter.getBestFragments(fq, searcher.getIndexReader, result.doc, contentField, Int.MaxValue, highlightLimit)
 			hls.headOption
@@ -151,11 +155,14 @@ case class IndexFactory(indexPath: Directory) {
 	private val preTag = "<span class=\"highlight"+(_:Int)+"\">";
 	private val postTag = "</span>";
   
-  	def analyzer =
-	 	new StandardAnalyzer(version)
+  	def newAnalyzer =
+	 	new EnglishAnalyzer(version)
+	
+	def newKeywordAnalyzer =
+		new KeywordAnalyzer
 
 	def config =
-    	new IndexWriterConfig(version, analyzer).setOpenMode(CREATE_OR_APPEND)
+    	new IndexWriterConfig(version, newAnalyzer).setOpenMode(CREATE_OR_APPEND)
   
   	def newWriter =
     	new IndexWriter(indexPath, config)
@@ -163,7 +170,7 @@ case class IndexFactory(indexPath: Directory) {
   	def newSearcher =
     	new IndexSearcher(indexPath)
 
-    def newQueryParser(fieldName: String) = {
+    def newQueryParser(fieldName: String, analyzer: Analyzer = newAnalyzer) = {
 		val parser = new QueryParser(version, fieldName, analyzer)
 		parser.setDefaultOperator(QueryParser.AND_OPERATOR)
 		parser
