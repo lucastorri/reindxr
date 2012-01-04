@@ -1,15 +1,18 @@
 package co.torri.reindxr.index
 
 import java.io.File
+import java.io.File.{separator => |}
 import java.io.StringReader
 
-import scala.Array.canBuildFrom
 import scala.io.Source.fromFile
 
 import org.apache.lucene.analysis.SimpleAnalyzer
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.Document
 import org.apache.lucene.document.Field
+import org.apache.lucene.document.Field.Index
+import org.apache.lucene.document.Field.Store
+import org.apache.lucene.document.Field.TermVector
 import org.apache.lucene.index.IndexWriterConfig.OpenMode.CREATE_OR_APPEND
 import org.apache.lucene.index.IndexReader
 import org.apache.lucene.index.IndexWriter
@@ -25,6 +28,13 @@ import org.apache.lucene.util.Version.LUCENE_31
 
 import grizzled.slf4j.Logger
 
+case class FileDoc(basepath: String, file: File) {
+	lazy val id = Some(file.getAbsolutePath.replace(basepath, "")).map { id =>
+		if (id.startsWith(|)) id.replace(|, "") else id
+	}.get
+	def timestamp = file.lastModified
+	def contents = fromFile(file).mkString
+}
 
 object FilesIndex {
 
@@ -37,16 +47,10 @@ case class FilesIndex(factory: IndexFactory) {
 	private val logger = Logger[FilesIndex]
     private val searchLimit = 20
 	private val highlightLimit = 3
-    private val identifierField = "uri"
+    private val identifierField = "id"
 	private val timestampField = "timestamp"
     private val contentField = "contents"
     private val queryParser = factory.newQueryParser(contentField)
-
-	private class FileId(file: File) {
-		def id = file.getAbsolutePath
-		def timestamp = file.lastModified
-	}
-	private implicit def file2fileId(file: File) = new FileId(file)
 	
 	private implicit def writer = factory.newWriter
 	
@@ -55,8 +59,8 @@ case class FilesIndex(factory: IndexFactory) {
 	    if (close) writer.close
 	}
 
-	def insert(file: File) : Unit = doInsert(file)
-    private def doInsert(file: File)(implicit writer: IndexWriter) : Unit = try withWriter { writer =>
+	def insert(file: FileDoc) : Unit = doInsert(file)
+    private def doInsert(file: FileDoc)(implicit writer: IndexWriter) : Unit = try withWriter { writer =>
     
 		if (factory.indexExists && file.timestamp <= timestampFor(file)) {
 			logger.info("Already latest version")
@@ -67,8 +71,8 @@ case class FilesIndex(factory: IndexFactory) {
     
     } catch { case e => logger.error("Error when indexing", e) }
 	
-	def remove(file: File) : Unit = doRemove(file)
-	private def doRemove(file: File)(implicit writer: IndexWriter, close: Boolean = true) = if (factory.indexExists) try withWriter { writer =>
+	def remove(file: FileDoc) : Unit = doRemove(file)
+	private def doRemove(file: FileDoc)(implicit writer: IndexWriter, close: Boolean = true) = if (factory.indexExists) try withWriter { writer =>
 		
  		writer.deleteDocuments(new Term(identifierField, file.id))
 	
@@ -81,32 +85,30 @@ case class FilesIndex(factory: IndexFactory) {
 	    ret
 	}
 	
-	private def timestampFor(f: File) : Long = withSearcher { searcher =>
+	private def timestampFor(f: FileDoc) : Long = withSearcher { searcher =>
 		if (!factory.indexExists) {
 			logger.info("File not indexed")
 			return 0L
 		}
 		
-		searcher.search(queryParser.parse(timestampField + ":" + f.id), searchLimit)
+		searcher.search(queryParser.parse(identifierField + ":" + f.id), searchLimit)
 			.scoreDocs.map(d => searcher.doc(d.doc)).
 			headOption.map(_.getFieldable(timestampField).stringValue.toLong).getOrElse(0L)
 	}
 
-    def search(query: String): List[(File, List[String])] = try withSearcher { searcher =>
+    def search(query: String): List[(String, List[String])] = try withSearcher { searcher =>
     
-		import org.apache.lucene.search.highlight.SimpleHTMLEncoder
-	
 	    if (!factory.indexExists) {
 	        logger.info("Index doesn't exist")
 	        return List()
 	    }
 		val q = queryParser.parse(contentField + ":" + query)
 	    val results = searcher.search(q, searchLimit)
-		val highlighter = factory.newHighlighter
+		val highlighter = factory.newHighlighter(true)
       	val fq = highlighter.getFieldQuery(q)
 	    val files = results.scoreDocs.sortBy(- _.score).map(_.doc).distinct.map{ docId => 
 			(
-				document2File(searcher.doc(docId)),
+				searcher.doc(docId).get(identifierField),
 				highlighter.getBestFragments(fq, searcher.getIndexReader, docId, contentField, 1000, highlightLimit).toList
 			)
 		}
@@ -114,15 +116,32 @@ case class FilesIndex(factory: IndexFactory) {
 	    files.toList
     
     } catch { case e => logger.error("Error when searching for " + query, e); List() }
-  
-    private implicit def document2File(d: Document) : File =
-      	new File(d.get(identifierField))
+	
+	def highlight(query: String, file: String) : String = try withSearcher { searcher =>
+		
+	    if (!factory.indexExists) {
+	        logger.info("Index doesn't exist")
+	        return ""
+	    }
+		
+		val q = queryParser.parse(identifierField + ":" + file + " " + contentField + ":" + query)
+	    val results = searcher.search(q, searchLimit)
+		val highlighter = factory.newHighlighter(false)
+      	val fq = highlighter.getFieldQuery(q)
+		println("results: " + results.scoreDocs.toList)
+		results.scoreDocs.headOption.flatMap { result =>
+			val hls = highlighter.getBestFragments(fq, searcher.getIndexReader, result.doc, contentField, Int.MaxValue, highlightLimit)
+			println(hls)
+			hls.headOption
+		}.getOrElse("")
+				
+	} catch { case e => logger.error("Error when highlighting " + file + "with query " + query, e); "" }
     
-    private implicit def file2Document(file: File) : Document = {
+    private implicit def file2Document(file: FileDoc) : Document = {
       	val doc = new Document
-      	doc.add(new Field(identifierField, file.id, Field.Store.YES, Field.Index.NOT_ANALYZED))
-		doc.add(new Field(timestampField, file.timestamp.toString, Field.Store.YES, Field.Index.NOT_ANALYZED))
-      	doc.add(new Field(contentField, fromFile(file).mkString, Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS))
+      	doc.add(new Field(identifierField, file.id, Store.YES, Index.NOT_ANALYZED))
+		doc.add(new Field(timestampField, file.timestamp.toString, Store.YES, Index.NOT_ANALYZED))
+      	doc.add(new Field(contentField, file.contents, Store.YES, Index.ANALYZED, TermVector.WITH_POSITIONS_OFFSETS))
       	doc
     }
 	
@@ -135,7 +154,7 @@ case class IndexFactory(indexPath: Directory) {
 	private val postTag = "</span>";
   
   	def analyzer =
-	 	new SimpleAnalyzer(version)
+	 	new StandardAnalyzer(version)
 
 	def config =
     	new IndexWriterConfig(version, analyzer).setOpenMode(CREATE_OR_APPEND)
@@ -152,9 +171,9 @@ case class IndexFactory(indexPath: Directory) {
 		parser
 	}
 	
-	def newHighlighter = {
+	def newHighlighter(snippetsOnly: Boolean) = {
 	    val fragListBuilder = new SimpleFragListBuilder
-	    val fragBuilder = TagFragmentBuilder(preTag, (i) => postTag)
+	    val fragBuilder = TagFragmentBuilder(snippetsOnly, preTag, (i) => postTag)
 	    new FastVectorHighlighter(true, true, fragListBuilder, fragBuilder)
 	}
     	

@@ -29,7 +29,7 @@ object Main {
 		
 		val index = indexFrom(indexFolder)
 
-		val indexer = actorOf(FilesIndexerActor(index)).start
+		val indexer = actorOf(FilesIndexerActor(index, dataFolder)).start
 		val dataEventHandler: PartialFunction[FileEvent, Unit] = {
 			case FileCreated(file) => indexer ! InsertIndex(file)
 			case FileModified(file) => indexer ! InsertIndex(file)

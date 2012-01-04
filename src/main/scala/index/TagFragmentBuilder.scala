@@ -37,9 +37,11 @@ import org.apache.lucene.util.Version
 import scala.collection.JavaConversions._
 
 
-case class TagFragmentBuilder(val preTag: Int => String, val postTag: Int => String) extends SimpleFragmentsBuilder(Array(preTag(0)), Array(postTag(0))) {
+case class TagFragmentBuilder(snippetsOnly: Boolean, preTag: Int => String, postTag: Int => String) extends SimpleFragmentsBuilder(Array(preTag(0)), Array(postTag(0))) {
 		
 	override def createFragments(reader: IndexReader, docId: Int, fieldName: String, fieldFragList: FieldFragList, maxNumFragments: Int) : Array[String] = {
+		
+		println("creating fragments")
 		
 		val source = reader.document(docId).get(fieldName)
 		if (Option(source).map(_.isEmpty).getOrElse(true)) {
@@ -56,8 +58,12 @@ case class TagFragmentBuilder(val preTag: Int => String, val postTag: Int => Str
 		val sourceChars = source.toCharArray
 			
 		val fragments = termPositions.groupBy { case (termStart, termEnd, seqnum) =>
-			val startFragPosition = Some(sourceChars.lastIndexOf('\n', termStart)).map(index => if (index < 0) 0 else index + 1).get
-			val endFragPosition = Some(sourceChars.indexOf('\n', termEnd)).map(index => if (index < 0) source.size else index).get
+			val startFragPosition = 
+				if (snippetsOnly) Some(sourceChars.lastIndexOf('\n', termStart)).map(index => if (index < 0) 0 else index + 1).get
+				else 0
+			val endFragPosition = 
+				if (snippetsOnly) Some(sourceChars.indexOf('\n', termEnd)).map(index => if (index < 0) source.size else index).get
+				else source.size
 			(startFragPosition, endFragPosition)
 		}.toList.reverseMap { case ((startFragPosition, endFragPosition), termsInFrag) =>
 			val terms = termsInFrag.sortBy(_._1)
@@ -77,6 +83,7 @@ case class TagFragmentBuilder(val preTag: Int => String, val postTag: Int => Str
 		}
 		
 		//maxNumFragments
+		println(fragments)
 		return fragments.toArray
 	}
 	
