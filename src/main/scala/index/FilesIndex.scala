@@ -111,7 +111,6 @@ case class FilesIndex(factory: IndexFactory) {
 			)
 		}
 		
-		println(files.toMap)
 	    files.toList
     
     } catch { case e => logger.error("Error when searching for " + query, e); List() }
