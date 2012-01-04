@@ -41,8 +41,6 @@ case class TagFragmentBuilder(snippetsOnly: Boolean, preTag: Int => String, post
 		
 	override def createFragments(reader: IndexReader, docId: Int, fieldName: String, fieldFragList: FieldFragList, maxNumFragments: Int) : Array[String] = {
 		
-		println("creating fragments")
-		
 		val source = reader.document(docId).get(fieldName)
 		if (Option(source).map(_.isEmpty).getOrElse(true)) {
 			return Array[String]()
@@ -83,7 +81,6 @@ case class TagFragmentBuilder(snippetsOnly: Boolean, preTag: Int => String, post
 		}
 		
 		//maxNumFragments
-		println(fragments)
 		return fragments.toArray
 	}
 	

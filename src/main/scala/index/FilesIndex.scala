@@ -128,10 +128,8 @@ case class FilesIndex(factory: IndexFactory) {
 	    val results = searcher.search(q, searchLimit)
 		val highlighter = factory.newHighlighter(false)
       	val fq = highlighter.getFieldQuery(q)
-		println("results: " + results.scoreDocs.toList)
 		results.scoreDocs.headOption.flatMap { result =>
 			val hls = highlighter.getBestFragments(fq, searcher.getIndexReader, result.doc, contentField, Int.MaxValue, highlightLimit)
-			println(hls)
 			hls.headOption
 		}.getOrElse("")
 				

@@ -30,7 +30,6 @@ case class IndexSearcherActor(index: FilesIndex) extends Actor {
 		case SearchIndex(query) =>
 			self.reply(SearchIndexResult(query, index.search(query)))
 		case HighlightResult(query, file) =>
-			println(query + " }> " + file)
 			self.reply(index.highlight(query, file))
 	}
 
