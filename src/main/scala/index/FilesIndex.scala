@@ -131,7 +131,7 @@ case class FilesIndex(factory: IndexFactory) {
 case class IndexFactory(indexPath: Directory) {
   
   	private val version = LUCENE_31
-	private val preTag = "<span class=\"highlight\">";
+	private val preTag = "<span class=\"highlight"+(_:Int)+"\">";
 	private val postTag = "</span>";
   
   	def analyzer =
@@ -154,7 +154,7 @@ case class IndexFactory(indexPath: Directory) {
 	
 	def newHighlighter = {
 	    val fragListBuilder = new SimpleFragListBuilder
-	    val fragBuilder = TagFragmentBuilder(preTag, postTag)
+	    val fragBuilder = TagFragmentBuilder(preTag, (i) => postTag)
 	    new FastVectorHighlighter(true, true, fragListBuilder, fragBuilder)
 	}
     	
