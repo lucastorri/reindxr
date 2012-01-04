@@ -19,6 +19,8 @@ import org.apache.lucene.queryParser.QueryParser
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.store.FSDirectory.open
 import org.apache.lucene.store.Directory
+import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter
+import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder
 import org.apache.lucene.util.Version.LUCENE_31
 
 import grizzled.slf4j.Logger
@@ -34,6 +36,7 @@ case class FilesIndex(factory: IndexFactory) {
 
 	private val logger = Logger[FilesIndex]
     private val searchLimit = 20
+	private val highlightLimit = 3
     private val identifierField = "uri"
 	private val timestampField = "timestamp"
     private val contentField = "contents"
@@ -89,16 +92,27 @@ case class FilesIndex(factory: IndexFactory) {
 			headOption.map(_.getFieldable(timestampField).stringValue.toLong).getOrElse(0L)
 	}
 
-    def search(query: String): List[File] = try withSearcher { searcher =>
+    def search(query: String): List[(File, List[String])] = try withSearcher { searcher =>
     
+		import org.apache.lucene.search.highlight.SimpleHTMLEncoder
+	
 	    if (!factory.indexExists) {
 	        logger.info("Index doesn't exist")
 	        return List()
 	    }
-	    val results = searcher.search(queryParser.parse(contentField + ":" + query), searchLimit)
-	    val files = results.scoreDocs.map(_.doc).distinct.map(docId => document2File(searcher.doc(docId)))
-
-	    files.distinct.toList
+		val q = queryParser.parse(contentField + ":" + query)
+	    val results = searcher.search(q, searchLimit)
+		val highlighter = factory.newHighlighter
+      	val fq = highlighter.getFieldQuery(q)
+	    val files = results.scoreDocs.sortBy(- _.score).map(_.doc).distinct.map{ docId => 
+			(
+				document2File(searcher.doc(docId)),
+				highlighter.getBestFragments(fq, searcher.getIndexReader, docId, contentField, 1000, highlightLimit).toList
+			)
+		}
+		
+		println(files.toMap)
+	    files.toList
     
     } catch { case e => logger.error("Error when searching for " + query, e); List() }
   
@@ -107,9 +121,9 @@ case class FilesIndex(factory: IndexFactory) {
     
     private implicit def file2Document(file: File) : Document = {
       	val doc = new Document
-      	doc.add(new Field(identifierField, file.id, Field.Store.YES, Field.Index.toIndex(true, false)))
-		doc.add(new Field(timestampField, file.timestamp.toString, Field.Store.YES, Field.Index.toIndex(true, false)))
-      	doc.add(new Field(contentField, new StringReader(fromFile(file).mkString)))
+      	doc.add(new Field(identifierField, file.id, Field.Store.YES, Field.Index.NOT_ANALYZED))
+		doc.add(new Field(timestampField, file.timestamp.toString, Field.Store.YES, Field.Index.NOT_ANALYZED))
+      	doc.add(new Field(contentField, fromFile(file).mkString, Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS))
       	doc
     }
 	
@@ -118,11 +132,13 @@ case class FilesIndex(factory: IndexFactory) {
 case class IndexFactory(indexPath: Directory) {
   
   	private val version = LUCENE_31
+	private val preTag = "<span class=\"highlight\">";
+	private val postTag = "</span>";
   
-  	private def analyzer =
+  	def analyzer =
 	 	new SimpleAnalyzer(version)
 
-	private def config =
+	def config =
     	new IndexWriterConfig(version, analyzer).setOpenMode(CREATE_OR_APPEND)
   
   	def newWriter =
@@ -135,6 +151,12 @@ case class IndexFactory(indexPath: Directory) {
 		val parser = new QueryParser(version, fieldName, analyzer)
 		parser.setDefaultOperator(QueryParser.AND_OPERATOR)
 		parser
+	}
+	
+	def newHighlighter = {
+	    val fragListBuilder = new SimpleFragListBuilder
+	    val fragBuilder = TagFragmentBuilder(preTag, postTag)
+	    new FastVectorHighlighter(true, true, fragListBuilder, fragBuilder)
 	}
     	
   

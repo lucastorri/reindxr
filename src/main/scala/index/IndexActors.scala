@@ -5,7 +5,7 @@ import java.io.File
 import akka.actor.Actor
 
 
-case class SearchIndexResult(query: String, files: List[File])
+case class SearchIndexResult(query: String, files: List[(File, List[String])])
 case class SearchIndex(query: String)
 case class InsertIndex(file: File)
 case class RemoveIndex(file: File)
