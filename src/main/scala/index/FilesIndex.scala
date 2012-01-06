@@ -36,7 +36,7 @@ case class FileDoc(basepath: String, file: File) {
 		if (id.startsWith(|)) id.replace(|, "") else id
 	}.get
 	def timestamp = file.lastModified
-	def contents = fromFile(file).mkString
+	def contents = fromFile(file, "UTF-8").mkString
 }
 
 object FilesIndex {
@@ -73,7 +73,7 @@ case class FilesIndex(factory: IndexFactory) {
       	doRemove(file)
      	writer.addDocument(file)
     
-    } catch { case e => logger.error("Error when indexing", e) }
+    } catch { case e => logger.error("Error when indexing " + file, e) }
 	
 	def remove(file: FileDoc) : Unit = doRemove(file)
 	private def doRemove(file: FileDoc) = if (factory.indexExists) try withWriter { writer =>
