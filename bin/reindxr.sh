@@ -1,21 +1,25 @@
 #!/bin/bash
 
-DATA_DIR=/Users/lucastorri/tmp/data
-INDEX_DIR=/Users/lucastorri/tmp/index
+# Variables that must be set:
+  # JAVA_HOME
+  # IRCLOG_DATA_DIR
+  # IRCLOG_INDEX_DIR
+  # IRCLOG_LOGS_DIR
+  # IRCLOG_PIDS_DIR
 
 SCRIPT=`basename "$0"`
-JAVA_HOME=/System/Library/Frameworks/JavaVM.framework/Versions/1.6.0/Home/
+SCRIPT_DIR=`dirname "$0"`
 MAIN=co.torri.reindxr.Main
-CLASSPATH=/Users/lucastorri/Projects/reindxr/target/reindxr-assembly-1.0.jar
-LOG_FILE=/Users/lucastorri/tmp/logs/$SCRIPT.log
-PID_FILE=/Users/lucastorri/tmp/pids/$SCRIPT.pid
+CLASSPATH=$SCRIPT_DIR/lib/reindxr.jar
+LOG_FILE=$IRCLOG_LOGS_DIR/$SCRIPT.log
+PID_FILE=$IRCLOG_PIDS_DIR/$SCRIPT.pid
 
 case $1 in
     start)
         ps -p `cat $PID_FILE`
         if [ $? -ne 0 ]
         then
-            exec 2>&1 $JAVA_HOME/bin/java -cp $CLASSPATH $MAIN $DATA_DIR $INDEX_DIR 1> $LOG_FILE &
+            exec 2>&1 $JAVA_HOME/bin/java -cp $CLASSPATH $MAIN $IRCLOG_DATA_DIR $IRCLOG_INDEX_DIR 1> $LOG_FILE &
             echo $! > $PID_FILE;
         fi
         ;;
