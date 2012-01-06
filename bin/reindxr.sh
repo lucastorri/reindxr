@@ -11,7 +11,7 @@
 SCRIPT=`basename "$0"`
 SCRIPT_DIR=`dirname "$0"`
 MAIN=co.torri.reindxr.Main
-CLASSPATH=$SCRIPT_DIR/lib/reindxr.jar
+CLASSPATH=$SCRIPT_DIR/../lib/reindxr.jar
 LOG_FILE=$IRCLOG_LOGS_DIR/$SCRIPT.log
 PID_FILE=$IRCLOG_PIDS_DIR/$SCRIPT.pid
 
