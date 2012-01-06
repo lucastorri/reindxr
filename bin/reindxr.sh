@@ -7,6 +7,12 @@
   # IRCLOG_LOGS_DIR
   # IRCLOG_PIDS_DIR
 
+if [ -a env.sh ]
+then
+  	source env.sh
+fi
+
+
 
 SCRIPT=`basename "$0"`
 SCRIPT_DIR=`dirname "$0"`
