@@ -7,15 +7,15 @@
   # IRCLOG_LOGS_DIR
   # IRCLOG_PIDS_DIR
 
+cd `dirname "$0"`
 if [ -a env.sh ]
 then
   	source env.sh
 fi
 
 
-
 SCRIPT=`basename "$0"`
-SCRIPT_DIR=`dirname "$0"`
+SCRIPT_DIR=`pwd`
 MAIN=co.torri.reindxr.Main
 CLASSPATH=$SCRIPT_DIR/../lib/reindxr.jar
 LOG_FILE=$IRCLOG_LOGS_DIR/$SCRIPT.log
