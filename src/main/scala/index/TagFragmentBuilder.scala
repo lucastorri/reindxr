@@ -65,7 +65,7 @@ case class TagFragmentBuilder(snippetsOnly: Boolean, preTag: Int => String, post
 				if (snippetsOnly) Some(sourceChars.indexOf('\n', termEnd)).map(index => if (index < 0) source.size else index).get
 				else source.size
 			(startFragPosition, endFragPosition)
-		}.toList.sortBy(- _._2.size).take(maxFragmentsPerFile).par.map { case ((startFragPosition, endFragPosition), termsInFrag) =>
+		}.toList.sortBy(- _._2.size).take(maxFragmentsPerFile).map { case ((startFragPosition, endFragPosition), termsInFrag) =>
 			val terms = termsInFrag.sortBy(_._1)
 			val buf = new StringBuilder
 			

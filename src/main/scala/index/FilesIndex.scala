@@ -110,7 +110,7 @@ case class FilesIndex(factory: IndexFactory) {
 	    val results = searcher.search(q, searchLimit)
 		val highlighter = factory.newHighlighter(true)
       	val fq = highlighter.getFieldQuery(q)
-	    val files = results.scoreDocs.sortBy(- _.score).map(_.doc).distinct.map{ docId => 
+	    val files = results.scoreDocs.sortBy(- _.score).map(_.doc).distinct.par.map{ docId => 
 			(
 				searcher.doc(docId).get(identifierField),
 				highlighter.getBestFragments(fq, searcher.getIndexReader, docId, contentField, 1000, highlightLimit).toList
