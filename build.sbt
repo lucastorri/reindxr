@@ -11,9 +11,9 @@ scalaVersion := "2.9.1"
 libraryDependencies ++= Seq(
   "org.apache.lucene" % "lucene-core" % "3.3.0",
   "org.apache.lucene" % "lucene-highlighter" % "3.3.0",
-    "org.apache.lucene" % "lucene-analyzers" % "3.3.0",
-  "se.scalablesolutions.akka" % "akka-actor" % "1.3-RC2",
-  "se.scalablesolutions.akka" % "akka-remote" % "1.3-RC2",
+  "org.apache.lucene" % "lucene-analyzers" % "3.3.0",
+  "com.typesafe.akka" % "akka-actor" % "2.0-M4",
+  "com.typesafe.akka" % "akka-remote" % "2.0-M4",
   "org.slf4j" % "slf4j-api" % "1.6.1",
   "ch.qos.logback" % "logback-classic" % "0.9.29",
   "org.clapper" %% "grizzled-slf4j" % "0.6.6",

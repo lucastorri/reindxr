@@ -13,24 +13,24 @@ case class SearchIndex(query: String)
 case class HighlightResult(query: String, file: String)
 
 case class FilesIndexerActor(index: FilesIndex, basepath: String) extends Actor {
-	
-	def receive = {
-		case InsertIndex(file) => index.insert(FileDoc(basepath, file))
-		case RemoveIndex(file) => index.remove(FileDoc(basepath, file))
-	}
-	
+
+  def receive = {
+    case InsertIndex(file) => index.insert(FileDoc(basepath, file))
+    case RemoveIndex(file) => index.remove(FileDoc(basepath, file))
+  }
+
 }
 object FilesIndexerActor {
-	def apply(index: FilesIndex, basepath: File) : FilesIndexerActor = apply(index, basepath.getAbsolutePath)
+  def apply(index: FilesIndex, basepath: File) : FilesIndexerActor = apply(index, basepath.getAbsolutePath)
 }
 
 case class IndexSearcherActor(index: FilesIndex) extends Actor {
-	
-	def receive = {
-		case SearchIndex(query) =>
-			self.reply(SearchIndexResult(query, index.search(query)))
-		case HighlightResult(query, file) =>
-			self.reply(index.highlight(query, file))
-	}
+
+  def receive = {
+    case SearchIndex(query) =>
+      sender ! SearchIndexResult(query, index.search(query))
+    case HighlightResult(query, file) =>
+      sender ! index.highlight(query, file)
+  }
 
 }

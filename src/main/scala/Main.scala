@@ -2,10 +2,9 @@ package co.torri.reindxr
 
 import java.io.File
 
-import akka.actor.Actor.actorOf
-import akka.actor.Actor.registry
-import akka.actor.Actor.remote
-import akka.actor.actorRef2Scala
+import akka.actor.Props
+import com.typesafe.config.ConfigFactory
+import akka.actor.ActorSystem
 import filemon.FileCreated
 import filemon.FileDeleted
 import filemon.FileEvent
@@ -20,37 +19,37 @@ import index.RemoveIndex
 
 object Main {
 
-	def main(args: Array[String]) : Unit = {
-		
-		val dataFolder = new File(args(0))
-		val indexFolder = new File(args(1))
-		val serverAddress = args.lift(2).getOrElse("localhost")
-		val serverPort = args.lift(3).map(_.toInt).getOrElse(8123)
-		
-		val index = indexFrom(indexFolder)
+  def main(args: Array[String]) : Unit = {
 
-		val indexer = actorOf(FilesIndexerActor(index, dataFolder)).start
-		val dataEventHandler: PartialFunction[FileEvent, Unit] = {
-			case FileCreated(file) => indexer ! InsertIndex(file)
-			case FileModified(file) => indexer ! InsertIndex(file)
-			case FileDeleted(file) => indexer ! RemoveIndex(file)
-		}
-		
-	    remote
-	    	.start(serverAddress, serverPort)
-	    	.register("search-service", actorOf(IndexSearcherActor(index)))
-		
-		val monitor = FileMonitor(dataFolder, dataEventHandler)
-		
-		Runtime.getRuntime.addShutdownHook(new Thread {
-            override def run = {
-                monitor.stop
-                registry.shutdownAll
-				index.close
-            }
-        })
-		
-		monitor.start
-	}
-	
+    val dataFolder = new File(args(0))
+    val indexFolder = new File(args(1))
+    val serverAddress = args.lift(2).getOrElse("localhost")
+    val serverPort = args.lift(3).map(_.toInt).getOrElse(8123)
+
+    val index = indexFrom(indexFolder)
+
+    val system = ActorSystem("CalculatorApplication", ConfigFactory.load.getConfig("calculator"))
+
+    val indexer = system.actorOf(Props(FilesIndexerActor(index, dataFolder)), "indexer")
+    val dataEventHandler: PartialFunction[FileEvent, Unit] = {
+      case FileCreated(file) => indexer ! InsertIndex(file)
+      case FileModified(file) => indexer ! InsertIndex(file)
+      case FileDeleted(file) => indexer ! RemoveIndex(file)
+    }
+
+    system.actorOf(Props(IndexSearcherActor(index)), "search-service")
+
+    val monitor = FileMonitor(dataFolder, dataEventHandler)
+
+    Runtime.getRuntime.addShutdownHook(new Thread {
+      override def run = {
+        monitor.stop
+        system.shutdown
+        index.close
+      }
+    })
+
+    monitor.start
+  }
+
 }
