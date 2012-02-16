@@ -12,7 +12,6 @@ libraryDependencies ++= Seq(
   "org.apache.lucene" % "lucene-core" % "3.3.0",
   "org.apache.lucene" % "lucene-highlighter" % "3.3.0",
   "org.apache.lucene" % "lucene-analyzers" % "3.3.0",
-  "com.typesafe.akka" % "akka-actor" % "2.0-M4",
   "com.typesafe.akka" % "akka-remote" % "2.0-M4",
   "org.slf4j" % "slf4j-api" % "1.6.1",
   "ch.qos.logback" % "logback-classic" % "0.9.29",

@@ -28,7 +28,7 @@ object Main {
 
     val index = indexFrom(indexFolder)
 
-    val system = ActorSystem("CalculatorApplication", ConfigFactory.load.getConfig("calculator"))
+    val system = ActorSystem("ReindxrApplication", ConfigFactory.load.getConfig("search"))
 
     val indexer = system.actorOf(Props(FilesIndexerActor(index, dataFolder)), "indexer")
     val dataEventHandler: PartialFunction[FileEvent, Unit] = {
