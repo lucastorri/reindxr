@@ -37,14 +37,14 @@ import org.apache.lucene.util.Version
 import scala.collection.JavaConversions._
 
 
-case class TagFragmentBuilder(snippetsOnly: Boolean, preTag: Int => String, postTag: Int => String) extends SimpleFragmentsBuilder(Array(preTag(0)), Array(postTag(0))) {
+case class TagFragmentBuilder(docFactory: DocFactory, snippetsOnly: Boolean, preTag: Int => String, postTag: Int => String) extends SimpleFragmentsBuilder(Array(preTag(0)), Array(postTag(0))) {
 	
 	private val maxFragmentsPerFile = 3
 		
 	override def createFragments(reader: IndexReader, docId: Int, fieldName: String, fieldFragList: FieldFragList, maxNumFragments: Int) : Array[String] = {
 		
-		val source = reader.document(docId).get(fieldName)
-		if (Option(source).map(_.isEmpty).getOrElse(true)) {
+		val source = docFactory(reader.document(docId)).contents
+		if (source.isEmpty) {
 			return Array[String]()
 		}
 		
@@ -55,14 +55,12 @@ case class TagFragmentBuilder(snippetsOnly: Boolean, preTag: Int => String, post
 				termOffset <- subInfo.getTermsOffsets
 			} yield (termOffset.getStartOffset, termOffset.getEndOffset, subInfo.getSeqnum)
 		
-		val sourceChars = source.toCharArray
-			
 		val fragments = termPositions.groupBy { case (termStart, termEnd, seqnum) =>
 			val startFragPosition = 
-				if (snippetsOnly) Some(sourceChars.lastIndexOf('\n', termStart)).map(index => if (index < 0) 0 else index + 1).get
+				if (snippetsOnly) Some(source.lastIndexOf('\n', termStart)).map(index => if (index < 0) 0 else index + 1).get
 				else 0
 			val endFragPosition = 
-				if (snippetsOnly) Some(sourceChars.indexOf('\n', termEnd)).map(index => if (index < 0) source.size else index).get
+				if (snippetsOnly) Some(source.indexOf('\n', termEnd)).map(index => if (index < 0) source.size else index).get
 				else source.size
 			(startFragPosition, endFragPosition)
 		}.toList.sortBy(- _._2.size).take(maxFragmentsPerFile).map { case ((startFragPosition, endFragPosition), termsInFrag) =>
@@ -83,6 +81,6 @@ case class TagFragmentBuilder(snippetsOnly: Boolean, preTag: Int => String, post
 		}
 		
 		fragments.toArray
-	}
+    }
 	
 }

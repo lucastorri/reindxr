@@ -14,7 +14,7 @@ case class FileCreated(file: File) extends FileEvent
 case class FileDeleted(file: File) extends FileEvent
 case class FileModified(file: File) extends FileEvent
 
-case class FileMonitor(dir: File, callback: FileEvent => Unit) {
+case class FileMonitor(dir: File, eventHandler: FileEvent => Unit) {
 	
     private var run = true;
     
@@ -23,7 +23,7 @@ case class FileMonitor(dir: File, callback: FileEvent => Unit) {
 	private val checkInterval = 600000
 
 	private def findDeletedFiles(original: FileStamp, current: FileStamp) =
-		original.keys.filter(k => !current.contains(k)).foreach(k => callback(FileDeleted(new File(k))))
+		original.keys.filter(k => !current.contains(k)).foreach(k => eventHandler(FileDeleted(new File(k))))
 	
 	@tailrec
 	private def realCheck(files: FileStamp) : Unit = {
@@ -34,8 +34,8 @@ case class FileMonitor(dir: File, callback: FileEvent => Unit) {
               		val (filepath, lastModified) = (f.getCanonicalPath, f.lastModified)
               	  	files.get(filepath) match {
                 		case Some(oldLastModified) if lastModified == oldLastModified  => ()
-						case None => callback(FileCreated(f))
-                		case _ => callback(FileModified(f))
+						case None => eventHandler(FileCreated(f))
+                		case _ => eventHandler(FileModified(f))
               	}
               	(filepath, lastModified)
             }.
@@ -52,5 +52,5 @@ case class FileMonitor(dir: File, callback: FileEvent => Unit) {
 	    run = false
 
 	def start =
-		realCheck(Map()) // save and get from, maybe, lucene the last known time that the file was modified
+		realCheck(Map())
 }
