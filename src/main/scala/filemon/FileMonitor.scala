@@ -29,10 +29,10 @@ case class FileMonitor(dir: File, eventHandler: FileEvent => Unit) {
 	private def realCheck(files: FileStamp) : Unit = {
         val updatedFiles = 
 			dir.
-          		listFiles.
+                listFiles.
             	map { f =>
-              		val (filepath, lastModified) = (f.getCanonicalPath, f.lastModified)
-              	  	files.get(filepath) match {
+                    val (filepath, lastModified) = (f.getCanonicalPath, f.lastModified)
+                    files.get(filepath) match {
                 		case Some(oldLastModified) if lastModified == oldLastModified  => ()
 						case None => eventHandler(FileCreated(f))
                 		case _ => eventHandler(FileModified(f))
