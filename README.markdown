@@ -47,7 +47,7 @@ The HTTP server runs on port 8123. There are two ways to access the index:
 > sbt eclipse
 
 * To run 
-> java -cp reindxr.jar co.torri.reindxr.Main <dataFolder> <indexFolder> \[serverAddress\] \[ServerPort\]
+> java -cp reindxr.jar co.torri.reindxr.Main &lt;dataFolder&gt; &lt;indexFolder&gt; \[serverAddress\] \[ServerPort\]
 
 
 
