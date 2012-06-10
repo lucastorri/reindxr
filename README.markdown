@@ -28,7 +28,7 @@ During a search, all the `index` subdirectories will be searched, using their re
 
 # rest api
 
-The HTTP server runs on port 8123. There are two ways to access the index:
+The HTTP server runs on port 8123 and was create using [Unfiltered](http://unfiltered.databinder.net/). There are two ways to access the index:
 
 * Searching: will return all the documents that match the given criteria (based on the Lucene search format) and snippets of the hits:
 > /search/#{your search criteria}
