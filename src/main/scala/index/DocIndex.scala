@@ -3,10 +3,9 @@ package co.torri.reindxr.index
 import java.io.File.{separator => |}
 import java.io.File
 import java.io.FileInputStream
-
 import scala.Array.canBuildFrom
-
 import org.apache.lucene.analysis.br.BrazilianAnalyzer
+import org.apache.lucene.analysis.en.EnglishAnalyzer
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.KeywordAnalyzer
 import org.apache.lucene.document.Field.Index
@@ -30,17 +29,21 @@ import org.apache.tika.detect.DefaultDetector
 import org.apache.tika.metadata.Metadata
 import org.apache.tika.parser.AutoDetectParser
 import org.apache.tika.sax.BodyContentHandler
-
 import DocFields.contentField
 import DocFields.identifierField
 import DocFields.timestampField
 import grizzled.slf4j.Logger
+import org.apache.tika.language.LanguageIdentifier
+import scala.collection.GenSeq
+import org.apache.lucene.search.Query
+import scala.collection.parallel.ParSeq
 
 
 trait DocFields {
 	val identifierField = "id"
     val timestampField = "timestamp"
     val contentField = "contents"
+    val languageField = "lang"
 }
 object DocFields extends DocFields
 
@@ -48,6 +51,7 @@ trait Doc {
 	def id : String
 	def timestamp : Long
 	def contents : String
+	def language : String
 	
 	def file : File
 	def document : Document
@@ -75,6 +79,9 @@ case class FileDoc(basepath: String, file: File) extends Doc with DocLoader {
   	}
   	
   	def timestamp = file.lastModified
+  	
+  	lazy val language =
+		new LanguageIdentifier(contents).getLanguage
 }
 
 case class DocumentDoc(basepath: String, d: Document) extends Doc with DocLoader {
@@ -84,6 +91,8 @@ case class DocumentDoc(basepath: String, d: Document) extends Doc with DocLoader
 	lazy val timestamp = d.getFieldable(timestampField).stringValue.toLong
 	
 	def file = new File(basepath + | + id)
+	
+	def language = d.getFieldable(languageField).stringValue
 }
 
 trait DocConverter extends DocFields { self : Doc =>
@@ -92,6 +101,7 @@ trait DocConverter extends DocFields { self : Doc =>
   		val d = new Document
         d.add(new Field(identifierField, self.id, Store.YES, Index.NOT_ANALYZED))
         d.add(new Field(timestampField, self.timestamp.toString, Store.YES, Index.NOT_ANALYZED))
+        d.add(new Field(languageField, self.language, Store.YES, Index.NOT_ANALYZED))
         d.add(new Field(contentField, self.contents, Store.NO, Index.ANALYZED, TermVector.WITH_POSITIONS_OFFSETS))
         d
   	}
@@ -121,136 +131,195 @@ object DocIndex {
     private val postTag = (i: Int) => "</span>";
   
     def apply(indexFolder: File, basepath: File) : DocIndex =
-    	DocIndex(DocIndexConfig(open(indexFolder), basepath, preTag, postTag))
+    	DocIndex(DocIndexConfig(indexFolder, basepath, preTag, postTag, DocFields.identifierField, DocFields.contentField))
 
 }
-case class DocIndex(factory: DocIndexConfig, searchLimit: Int = 20, highlightLimit: Int = 3, maxNumOfFragment: Int = 1000) {
+case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimit: Int = 3, maxNumOfFragment: Int = 1000) {
 
 	import DocFields._
     private val logger = Logger[DocIndex]
-    private val queryParser = factory.newQueryParser(contentField)
-    private val idQueryParser = factory.newIdQueryParser(identifierField)
-    private val docFactory = factory.newDocFactory
-    private implicit lazy val writer = factory.newWriter
+    private val docFactory = config.docFactory
 
     def insert(doc: Doc) : Unit = 
-        if (doc.timestamp > timestampFor(doc)) withWriter { writer =>
-            remove(doc)
-            writer.addDocument(doc.document)
+        if (doc.timestamp > timestampFor(doc)) withIndex { index =>
+          	println("inserting " + doc.id + "[" + doc.language + "]")
+            index.delete(doc)
+            index.insert(doc)
             logger.info("inserting " + doc.id)
-        }("Error when indexing " + doc)
+        }("Error when inserting " + doc.id)
 
     def remove(doc: Doc) : Unit = 
-        withWriter {
+        withIndex { index =>
+        	index.delete(doc) 
         	logger.info("removing " + doc.id)
-        	_.deleteDocuments(new Term(identifierField, doc.id)) 
-        }("Error when deleting on " + doc)
+        }("Error when deleting " + doc.id)
 
     private def timestampFor(doc: Doc) : Long = 
-        withSearcher { searcher =>
-            searcher.search(idQueryParser.parse(identifierField + ":" + doc.id), searchLimit)
-                .scoreDocs.map(d => searcher.doc(d.doc))
-                .headOption.map(_.getFieldable(timestampField).stringValue.toLong).getOrElse(0L)
+        withIndex { index =>
+          	index.searchId(doc.id).map(_.getFieldable(timestampField).stringValue.toLong).getOrElse(0L)
         }("File not indexed " + doc.id, 0L)
 
-    def search(query: String): List[DocMatch] = 
-        withSearcher { searcher =>
+    def search(query: String): Seq[DocMatch] = 
+        withIndex { index =>
 
-            val q = queryParser.parse(contentField + ":" + query)
-            val results = searcher.search(q, searchLimit)
-            val highlighter = factory.newHighlighter(true)
-            val fq = highlighter.getFieldQuery(q)
-            val files = results.scoreDocs.sortBy(- _.score).map(_.doc).distinct.par.map{ docId =>
-                DocMatch(
-                    docFactory(searcher.doc(docId)),
-                    highlighter.getBestFragments(fq, searcher.getIndexReader, docId, contentField, maxNumOfFragment, highlightLimit)
-                )
+            val highlighter = config.highlighter(true)
+            index.search(query, searchLimit).map { r =>
+              	val fq = highlighter.getFieldQuery(r.q)
+            	DocMatch(
+            	    docFactory(r.document),
+            	    highlighter.getBestFragments(fq, r.reader, r.docId, contentField, maxNumOfFragment, highlightLimit)
+            	)
             }
-
-            files.toList
 
         }("Error when searching for " + query, List())
 
     def highlight(query: String, id: String) : String = 
-        withSearcher { searcher =>
+        withIndex { index =>
 
-            val q = idQueryParser.parse(identifierField + ":" + id)
-            val results = searcher.search(q, searchLimit)
-            val highlighter = factory.newHighlighter(false)
-
-            val result =
-	            if (query.trim.isEmpty) None
-	            else {
-	                val fq = highlighter.getFieldQuery(queryParser.parse(contentField + ":" + query))
-	                results.scoreDocs.headOption.flatMap { result =>
-	                    val hls = highlighter.getBestFragments(fq, searcher.getIndexReader, result.doc, contentField, Int.MaxValue, highlightLimit)
-	                    hls.headOption
-	                }
-	            }
-
-            result.orElse(Option(searcher.getIndexReader.document(results.scoreDocs.head.doc).get(contentField))).getOrElse("")
+            val hl = config.highlighter(false)
+            val result = index.searchInId(id, query)
+            
+            result.map { r =>
+              	val d = docFactory(r.document)
+              	val fq = hl.getFieldQuery(r.q)
+              	val hls = hl.getBestFragments(fq, r.reader, r.docId, contentField, Int.MaxValue, highlightLimit)
+              	hls.headOption.getOrElse(d.contents)
+            }.getOrElse("")
 
         }("Error when highlighting " + id + "with query " + query, "")
 
-    private def withWriter(exec: IndexWriter => Unit)(errorMsg: => String)(implicit writer: IndexWriter) = try {
-        exec(writer)
-        writer.commit
-    } catch { case e => logger.error(errorMsg, e) }
-
-    private def withSearcher[T](exec: IndexSearcher => T)(errorMsg: => String, defaultReturn: => T) : T =  try {
-        val searcher = factory.newSearcher
-        val ret = exec(searcher)
-        searcher.close
-        ret
+    private def withIndex[Ret](exec: IndexAdapter => Ret)(errorMsg: => String, defaultReturn: => Ret = () => null) : Ret = try {
+        exec(config.indexAdapter)
     } catch { case e => logger.error(errorMsg, e); defaultReturn }
 
     def close = {
-        writer.close
-        factory.close
+        config.close
     }
 
 }
 
-case class DocIndexConfig(indexpath: Directory, basepath: File, preTag: Int => String, postTag: Int => String) {
+trait IndexAdapter {
+	def insert(doc: Doc) : Unit
+  
+	def search(query: String, limit: Int) : Seq[SearchResult]
+	
+  	def searchId(id: String) : Option[Document]
+	
+	def searchInId(id: String, query: String) : Option[SearchResult]
+	
+	def delete(doc: Doc) : Unit
+	  	
+	def close : Unit
+}
 
-    private val version = LUCENE_31
+case class SearchResult(score: Float, q: Query, reader: IndexReader, document: Document, docId: Int)
 
-    def newAnalyzer =
-        new BrazilianAnalyzer(version)
+case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String, postTag: Int => String, idField: String, contentField: String) {
+  	
+	val version = LUCENE_31
+  
+	private val idQueryParser = 
+		queryParser(idField, new KeywordAnalyzer)
+	
+	private def fq(field: String, q: String) =
+	  	"%s:%s".format(field, q)
+	
+	private lazy val writers : ParSeq[IndexWriter] = 
+		langs.values.toList.map(_.writer).par
+	
+	private lazy val analyzers : ParSeq[LangAnalyzer] = 
+	  	langs.values.toList.par
+	
+	val langs = {
+		val defaultFactory = LangAnalyzer("en", new EnglishAnalyzer(version))
+		Map(
+			defaultFactory.toPair,
+			LangAnalyzer("pt", new BrazilianAnalyzer(version)).toPair
+		).withDefaultValue(defaultFactory)
+	}
 
-    def newKeywordAnalyzer =
-        new KeywordAnalyzer
-
-    def config =
-        new IndexWriterConfig(version, newAnalyzer).setOpenMode(CREATE_OR_APPEND)
-
-    def newWriter =
-        new IndexWriter(indexpath, config)
-
-    def newSearcher =
-        new IndexSearcher(indexpath)
-
-    def newQueryParser(fieldName: String, analyzer: Analyzer = newAnalyzer) = {
+    private def queryParser(fieldName: String, analyzer: Analyzer) = {
         val parser = new QueryParser(version, fieldName, analyzer)
         parser.setDefaultOperator(QueryParser.AND_OPERATOR)
         parser
     }
     
-    def newIdQueryParser(fieldName: String) =
-        newQueryParser(fieldName, newKeywordAnalyzer)
-
-    def newHighlighter(snippetsOnly: Boolean) = {
+    def highlighter(snippetsOnly: Boolean) = {
         val fragListBuilder = new SimpleFragListBuilder
-        val fragBuilder = TagFragmentBuilder(newDocFactory, snippetsOnly, preTag, postTag)
+        val fragBuilder = TagFragmentBuilder(docFactory, snippetsOnly, preTag, postTag)
         new FastVectorHighlighter(true, true, fragListBuilder, fragBuilder)
     }
     
-    def newDocFactory = 
-      Doc.factory(basepath)
-
-    def indexExists =
-        IndexReader.indexExists(indexpath)
+    lazy val indexAdapter =
+    	new DefaultIndexAdapter
+    
+    lazy val docFactory = 
+    	Doc.factory(basepath)
 
     def close =
-        indexpath.close
+        analyzers.foreach(_.close)
+		
+  	class DefaultIndexAdapter extends IndexAdapter {
+  		def insert(doc: Doc) : Unit = {
+  			val w = langs(doc.language).writer
+  			w.addDocument(doc.document)
+  			w.commit
+  		}
+  	  
+  		def search(query: String, limit: Int) : Seq[SearchResult] =
+  			analyzers.flatMap { a =>
+  			  	val q = a.parser.parse(fq(contentField, query))
+  			  	a.searcher.search(q, limit).scoreDocs.distinct.map {d =>
+  			  	  	SearchResult(d.score, q, a.searcher.getIndexReader, a.searcher.doc(d.doc), d.doc)
+  			  	} 
+  			}.seq.sortBy(- _.score)
+  		
+		def searchId(id: String) : Option[Document] = {
+  			  searchInId(id, id).map(r => r.document)
+  		}
+  			
+	  	def searchInId(id: String, query: String) : Option[SearchResult] = {
+			val q = idQueryParser.parse(fq(idField, id))
+  			analyzers.flatMap { a =>
+  			  	a.searcher.search(q, 1).scoreDocs.map { d => 
+  			  		val doc = a.searcher.doc(d.doc)
+  			  		val q = a.parser.parse(fq(contentField, query))
+  			  		SearchResult(d.score, q, a.searcher.getIndexReader, doc, d.doc)
+  			  	}
+  			}.seq.headOption
+  		}
+  			
+  		def delete(doc: Doc) : Unit =
+  		  	writers.foreach(_.deleteDocuments(new Term(idField, doc.id)))
+  		  	
+  		def close = 
+  		  	langs.values.foreach(_.close)
+  	}
+    
+    object LangAnalyzer {
+    	def apply(lang: String, analyzer: Analyzer) = {
+    		val dir = new File(indexpath.getAbsolutePath + | + lang)
+    		dir.mkdirs
+    		dir
+    		new LangAnalyzer(lang, analyzer, dir, open(dir))
+    	}
+    }
+    class LangAnalyzer(val lang: String, val analyzer: Analyzer, val dir: File, idir: Directory) {
+    	
+    	println("NEW LANG ANALYZER: " + lang)
+      
+    	lazy val parser = queryParser(contentField, analyzer)
+  		lazy val writer = new IndexWriter(idir, config)
+  		lazy val searcher = new IndexSearcher(idir)
+    	
+	  	val config =
+	  		new IndexWriterConfig(version, analyzer).setOpenMode(CREATE_OR_APPEND)
+  		
+  		def close = {
+    		searcher.close
+    		writer.close
+    	}
+    	
+    	def toPair = (lang, this)
+  	}
 }
