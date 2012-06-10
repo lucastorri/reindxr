@@ -226,14 +226,14 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
 	private lazy val writers : ParSeq[IndexWriter] = 
 		langs.values.toList.map(_.writer).par
 	
-	private lazy val analyzers : ParSeq[LangAnalyzer] = 
+	private lazy val analyzers : ParSeq[LangDocIndexConfig] = 
 	  	langs.values.toList.par
 	
 	val langs = {
-		val defaultFactory = LangAnalyzer("en", new EnglishAnalyzer(version))
+		val defaultFactory = LangDocIndexConfig("en", new EnglishAnalyzer(version))
 		Map(
 			defaultFactory.toPair,
-			LangAnalyzer("pt", new BrazilianAnalyzer(version)).toPair
+			LangDocIndexConfig("pt", new BrazilianAnalyzer(version)).toPair
 		).withDefaultValue(defaultFactory)
 	}
 
@@ -295,15 +295,15 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
   		  	langs.values.foreach(_.close)
   	}
     
-    object LangAnalyzer {
+    object LangDocIndexConfig {
     	def apply(lang: String, analyzer: Analyzer) = {
     		val dir = new File(indexpath.getAbsolutePath + | + lang)
     		dir.mkdirs
     		dir
-    		new LangAnalyzer(lang, analyzer, dir, open(dir))
+    		new LangDocIndexConfig(lang, analyzer, dir, open(dir))
     	}
     }
-    class LangAnalyzer(val lang: String, val analyzer: Analyzer, val dir: File, idir: Directory) {
+    class LangDocIndexConfig(val lang: String, val analyzer: Analyzer, val dir: File, idir: Directory) {
     	
     	lazy val parser = queryParser(contentField, analyzer)
   		lazy val writer = new IndexWriter(idir, config)
