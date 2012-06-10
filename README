@@ -1,7 +1,0 @@
-monitor a folder for file changes and automatically (re)index files on it. Searches can be made through an Akka client.
-
-java -cp reindxr.jar co.torri.reindxr.Main <dataFolder> <indexFolder> [serverAddress] [ServerPort]
-
-
-To generate a jar: sbt assembly
-To generate a eclipse project: sbt eclipse
