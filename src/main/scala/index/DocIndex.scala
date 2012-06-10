@@ -5,9 +5,8 @@ import java.io.File
 import java.io.FileInputStream
 
 import scala.Array.canBuildFrom
-import scala.annotation.implicitNotFound
 
-import org.apache.lucene.analysis.en.EnglishAnalyzer
+import org.apache.lucene.analysis.br.BrazilianAnalyzer
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.KeywordAnalyzer
 import org.apache.lucene.document.Field.Index
@@ -142,14 +141,17 @@ case class DocIndex(factory: DocIndexConfig, searchLimit: Int = 20, highlightLim
         }("Error when indexing " + doc)
 
     def remove(doc: Doc) : Unit = 
-        withWriter { _.deleteDocuments(new Term(identifierField, doc.id)) }("Error when deleting on " + doc)
+        withWriter {
+        	logger.info("removing " + doc.id)
+        	_.deleteDocuments(new Term(identifierField, doc.id)) 
+        }("Error when deleting on " + doc)
 
     private def timestampFor(doc: Doc) : Long = 
         withSearcher { searcher =>
-            searcher.search(queryParser.parse(identifierField + ":" + doc.id), searchLimit)
+            searcher.search(idQueryParser.parse(identifierField + ":" + doc.id), searchLimit)
                 .scoreDocs.map(d => searcher.doc(d.doc))
                 .headOption.map(_.getFieldable(timestampField).stringValue.toLong).getOrElse(0L)
-        }("File not indexed", 0L)
+        }("File not indexed " + doc.id, 0L)
 
     def search(query: String): List[DocMatch] = 
         withSearcher { searcher =>
@@ -214,7 +216,7 @@ case class DocIndexConfig(indexpath: Directory, basepath: File, preTag: Int => S
     private val version = LUCENE_31
 
     def newAnalyzer =
-        new EnglishAnalyzer(version)
+        new BrazilianAnalyzer(version)
 
     def newKeywordAnalyzer =
         new KeywordAnalyzer

@@ -20,7 +20,7 @@ case class FileMonitor(dir: File, eventHandler: FileEvent => Unit) {
     
 	private type FileStamp = Map[String, Long]
 
-	private val checkInterval = 600000
+	private val checkInterval = 10000
 
 	private def findDeletedFiles(original: FileStamp, current: FileStamp) =
 		original.keys.filter(k => !current.contains(k)).foreach(k => eventHandler(FileDeleted(new File(k))))
