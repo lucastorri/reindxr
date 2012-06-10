@@ -142,10 +142,9 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
 
     def insert(doc: Doc) : Unit = 
         if (doc.timestamp > timestampFor(doc)) withIndex { index =>
-          	println("inserting " + doc.id + "[" + doc.language + "]")
             index.delete(doc)
             index.insert(doc)
-            logger.info("inserting " + doc.id)
+            logger.info("inserting " + doc.id + " [" + doc.language + "]")
         }("Error when inserting " + doc.id)
 
     def remove(doc: Doc) : Unit = 
@@ -306,8 +305,6 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
     }
     class LangAnalyzer(val lang: String, val analyzer: Analyzer, val dir: File, idir: Directory) {
     	
-    	println("NEW LANG ANALYZER: " + lang)
-      
     	lazy val parser = queryParser(contentField, analyzer)
   		lazy val writer = new IndexWriter(idir, config)
   		lazy val searcher = new IndexSearcher(idir)
