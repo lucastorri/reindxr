@@ -21,7 +21,7 @@ object DocMatchRep {
 	def apply(d: DocMatch) : DocMatchRep = apply(d.doc.id, d.matches)
 }
 
-case class HttpServer(index: DocIndex, port: Int, address: String) {
+case class HttpServer(index: DocIndex, port: Int) {
   
 	val handler = async.Planify {
 		case req @ GET(Path(Seg("search" :: query :: Nil))) =>
@@ -32,7 +32,7 @@ case class HttpServer(index: DocIndex, port: Int, address: String) {
 		    req.respond(NotFound ~> ResponseString("not found"))
 	}
   
-    private val s = Http(port, address).chunked(1048576).plan(handler)
+    private val s = Http(port).chunked(1048576).plan(handler)
 
     def start : Unit = s.start
     
