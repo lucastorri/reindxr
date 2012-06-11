@@ -14,7 +14,6 @@ libraryDependencies ++= Seq(
   "org.apache.lucene" % "lucene-analyzers" % "3.3.0",
   "org.apache.tika" % "tika-parsers" % "1.1",
   "org.slf4j" % "slf4j-api" % "1.6.1",
-  "ch.qos.logback" % "logback-classic" % "0.9.29",
   "org.clapper" %% "grizzled-slf4j" % "0.6.6",
   "org.streum" % "configrity_2.9.0" % "0.7.0",
   "net.databinder" %% "unfiltered-netty-server" % "0.6.3",
