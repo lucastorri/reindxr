@@ -8,14 +8,14 @@
   # PIDS_DIR
 
 cd `dirname "$0"`
-if [ -a env.sh ]
+SCRIPT_DIR=`pwd`
+if [ -a $SCRIPT_DIR/env.sh ]
 then
-  	source env.sh
+  	source $SCRIPT_DIR/env.sh
 fi
 
 
 SCRIPT=`basename "$0"`
-SCRIPT_DIR=`pwd`
 MAIN=co.torri.reindxr.Main
 CLASSPATH=$SCRIPT_DIR/../lib/reindxr.jar
 LOG_FILE=$LOGS_DIR/$SCRIPT.log
@@ -23,7 +23,7 @@ PID_FILE=$PIDS_DIR/$SCRIPT.pid
 
 case $1 in
     start)
-        ps -p `cat $PID_FILE`
+        ps -p `cat $PID_FILE` > /dev/null
         if [ $? -ne 0 ]
         then
             exec 2>&1 $JAVA_HOME/bin/java -cp $CLASSPATH $MAIN "$DATA_DIR" "$INDEX_DIR" 1> $LOG_FILE &
