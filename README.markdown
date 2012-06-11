@@ -47,7 +47,7 @@ The HTTP server runs on port 8123 and was create using [Unfiltered](http://unfil
 > sbt eclipse
 
 * To run 
-> java -cp reindxr.jar co.torri.reindxr.Main &lt;dataFolder&gt; &lt;indexFolder&gt; \[serverAddress\] \[ServerPort\]
+> java -cp reindxr.jar co.torri.reindxr.Main &lt;dataFolder&gt; &lt;indexFolder&gt; \[serverPort\]
 
 
 
