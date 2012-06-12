@@ -10,6 +10,20 @@ Given a dir were all your documents will be placed, let's say `data`, and a dir,
 
 
 
+# run
+
+You can download the latest releases on the [Download tab](https://github.com/lucastorri/reindxr/downloads) and unzip it to wherever you desire. On the zip file you will find the file `bin/reindxr`.
+
+To start it as a background process run:
+> ./bin/reindxr start
+
+...and to stop:
+> ./bin/reindxr stop
+
+`reindxr` comes with some default configurations for defining the `index` and `data` directories. If `env.sh` on the `bin` dir is not modified, it will create a directory in `$HOME/.reindxr`, where you can find both dirs.
+
+
+
 # how
 
 [Apache Lucene](https://lucene.apache.org/) is used to created the indexed data. Language detection and document text extraction is done with [Apache Tika](http://tika.apache.org/).
