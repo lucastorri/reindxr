@@ -1,10 +1,18 @@
-REINDXR_HOME=$HOME/tmp/reindxr
+DEFAULT_REINDXR_HOME=$HOME/.reindxr
 
-JAVA_HOME=${JAVA_HOME:=/System/Library/Frameworks/JavaVM.framework/Versions/1.6/Home/}
-DATA_DIR=${DATA_DIR:=${REINDXR_HOME}/data}
-INDEX_DIR=${INDEX_DIR:=${REINDXR_HOME}/index}
-LOGS_DIR=${LOGS_DIR:=${REINDXR_HOME}/logs}
-PIDS_DIR=${PIDS_DIR:=${REINDXR_HOME}/pids}
+__find_java()
+{
+    java_bin=`which java`
+    java_bin=${java_bin:=${JAVA_HOME}/bin/java}
+    echo $java_bin
+}
+
+
+JAVA_BIN=`__find_java`
+DATA_DIR=${DATA_DIR:=${DEFAULT_REINDXR_HOME}/data}
+INDEX_DIR=${INDEX_DIR:=${DEFAULT_REINDXR_HOME}/index}
+LOGS_DIR=${LOGS_DIR:=${DEFAULT_REINDXR_HOME}/logs}
+PIDS_DIR=${PIDS_DIR:=${DEFAULT_REINDXR_HOME}/pids}
 
 mkdir -p $DATA_DIR
 mkdir -p $INDEX_DIR

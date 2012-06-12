@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Variables that must be set:
-  # JAVA_HOME
+  # JAVA_BIN
   # DATA_DIR
   # INDEX_DIR
   # LOGS_DIR
@@ -26,12 +26,12 @@ case $1 in
         ps -p `cat $PID_FILE` > /dev/null
         if [ $? -ne 0 ]
         then
-            exec 2>&1 $JAVA_HOME/bin/java -cp $CLASSPATH $MAIN "$DATA_DIR" "$INDEX_DIR" 1> $LOG_FILE &
+            exec 2>&1 $JAVA_BIN -cp $CLASSPATH $MAIN "$DATA_DIR" "$INDEX_DIR" 1> $LOG_FILE &
             echo $! > $PID_FILE;
         fi
         ;;
     stop)
-        kill `cat $PID_FILE` ;;
+        kill `cat $PID_FILE` > /dev/null ;;
     *)
         echo "usage: $SCRIPT {start|stop}" ;;
 esac
