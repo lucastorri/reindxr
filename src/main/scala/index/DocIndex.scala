@@ -252,6 +252,8 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
         analyzers.foreach(_.close)
         
     class DefaultIndexAdapter extends IndexAdapter {
+        
+        private val logger = Logger[DefaultIndexAdapter]
 
         def insert(doc: Doc) : Unit = {
             val w = langs(doc.language).writer
@@ -260,7 +262,7 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
         }
         
         def search(query: String, limit: Int) : Seq[SearchResult] =
-            try { analyzers.filter(_.indexExists).flatMap { a =>
+            try analyzers.filter(_.indexExists).flatMap { a =>
                 val qq = fq(contentField, query)
                 val q = a.parser.parse(qq)
                 a.searcher.search(q, limit).scoreDocs.distinct.map {d =>
