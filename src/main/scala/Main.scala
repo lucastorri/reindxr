@@ -31,7 +31,7 @@ object Main {
         }
         
         val monitor = FileMonitor(dataFolder, eventHandler)
-        val server = HttpServer(index, serverPort, serverAddress)
+        val server = HttpServer(index, serverPort)
         
         Runtime.getRuntime.addShutdownHook(new Thread {
             override def run = {
