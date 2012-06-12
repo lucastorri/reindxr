@@ -44,7 +44,7 @@ case class FileMonitor(dir: File, eventHandler: FileEvent => Unit) {
 		findDeletedFiles(files, updatedFiles)
 				
 		sleep(checkInterval)
-				
+		
 		if (run) realCheck(updatedFiles)
 	}
 	

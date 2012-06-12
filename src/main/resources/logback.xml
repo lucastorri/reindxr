@@ -1,7 +1,7 @@
 <configuration>
 
 	<appender name="GENERAL" class="ch.qos.logback.core.FileAppender">
-  	<file>${IRCLOG_LOGS_DIR}/reindxr-exceptions.log</file>
+  	    <file>${LOGS_DIR}/reindxr-exceptions.log</file>
 		<append>true</append>
 		<encoder>
 			<pattern>%date [%thread] %-5level %logger{35} - %msg%n</pattern>

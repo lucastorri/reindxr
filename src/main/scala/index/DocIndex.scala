@@ -118,7 +118,8 @@ trait DocReader { self : Doc =>
         c.toString
     }
     
-    override def contents = read(file).toString
+    override def contents =
+        read(file).toString
 }
 
 trait DocLoader extends DocConverter with DocReader { self: Doc => }
@@ -259,11 +260,12 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
         }
         
         def search(query: String, limit: Int) : Seq[SearchResult] =
-            analyzers.flatMap { a =>
-                val q = a.parser.parse(fq(contentField, query))
+            analyzers.filter(_.indexExists).flatMap { a =>
+                val qq = fq(contentField, query)
+                val q = a.parser.parse(qq)
                 a.searcher.search(q, limit).scoreDocs.distinct.map {d =>
                     SearchResult(d.score, q, a.searcher.getIndexReader, a.searcher.doc(d.doc), d.doc)
-                } 
+                }
             }.seq.sortBy(- _.score)
           
         def searchId(id: String) : Option[Document] =
@@ -271,7 +273,7 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
 
         def searchInId(id: String, query: String) : Option[SearchResult] = {
             val q = idQueryParser.parse(fq(idField, id))
-                analyzers.flatMap { a =>
+                analyzers.filter(_.indexExists).flatMap { a =>
                     a.searcher.search(q, 1).scoreDocs.map { d => 
                         val doc = a.searcher.doc(d.doc)
                         val q = a.parser.parse(fq(contentField, query))
@@ -291,22 +293,24 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
         def apply(lang: String, analyzer: Analyzer) = {
             val dir = new File(indexpath.getAbsolutePath + | + lang)
             dir.mkdirs
-            dir
             new LangDocIndexConfig(lang, analyzer, dir, open(dir))
         }
     }
     class LangDocIndexConfig(val lang: String, val analyzer: Analyzer, val dir: File, idir: Directory) {
         
-        lazy val parser = queryParser(contentField, analyzer)
-        lazy val writer = new IndexWriter(idir, config)
+        val writer = {
+            val config = new IndexWriterConfig(version, analyzer).setOpenMode(CREATE_OR_APPEND)
+            new IndexWriter(idir, config)
+        }
         lazy val searcher = new IndexSearcher(idir)
+        lazy val parser = queryParser(contentField, analyzer)
         
-        val config =
-            new IndexWriterConfig(version, analyzer).setOpenMode(CREATE_OR_APPEND)
-          
+        def indexExists =
+            IndexReader.indexExists(idir)
+        
         def close = {
-            searcher.close
-            writer.close
+            try { searcher.close } catch { case e => }
+            try { writer.close } catch { case e => }
         }
         
         def toPair = (lang, this)
