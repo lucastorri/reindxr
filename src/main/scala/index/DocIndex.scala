@@ -260,18 +260,18 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
         }
         
         def search(query: String, limit: Int) : Seq[SearchResult] =
-            analyzers.filter(_.indexExists).flatMap { a =>
+            try { analyzers.filter(_.indexExists).flatMap { a =>
                 val qq = fq(contentField, query)
                 val q = a.parser.parse(qq)
                 a.searcher.search(q, limit).scoreDocs.distinct.map {d =>
                     SearchResult(d.score, q, a.searcher.getIndexReader, a.searcher.doc(d.doc), d.doc)
                 }
-            }.seq.sortBy(- _.score)
+            }.seq.sortBy(- _.score) catch { case e => logger.error("Error when searching", e); List() }
           
         def searchId(id: String) : Option[Document] =
             searchInId(id, id).map(r => r.document)
 
-        def searchInId(id: String, query: String) : Option[SearchResult] = {
+        def searchInId(id: String, query: String) : Option[SearchResult] = try {
             val q = idQueryParser.parse(fq(idField, id))
                 analyzers.filter(_.indexExists).flatMap { a =>
                     a.searcher.search(q, 1).scoreDocs.map { d => 
@@ -280,7 +280,7 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
                         SearchResult(d.score, q, a.searcher.getIndexReader, doc, d.doc)
                     }
                 }.seq.headOption
-        }
+        } catch { case e => logger.error("Error when id searching", e); None }
               
         def delete(doc: Doc) : Unit =
             writers.foreach(_.deleteDocuments(new Term(idField, doc.id)))
