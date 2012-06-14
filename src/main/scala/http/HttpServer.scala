@@ -27,15 +27,32 @@ case class HttpServer(index: DocIndex, port: Int) {
   
 	val handler = async.Planify {
 	  	case req @ GET(Path(Seg("search" :: dec(query) :: Nil))) =>
-		  	req.respond(JsonContent ~> ResponseString(index.search(query).map(DocMatchRep(_)).toJson.toString))
+		  	req.respond(Json(index.search(query)))
+		  	
 		case req @ GET(Path(Seg("snippets" :: dec(query) :: Nil))) =>
-		  	req.respond(JsonContent ~> ResponseString(index.snippets(query).map(DocMatchRep(_)).toJson.toString))
+		  	req.respond(Json(index.snippets(query)))
+		  	
 		case req @ GET(Path(Seg("snippets" :: dec(id) :: dec(query) :: Nil))) =>
-		  	req.respond(JsonContent ~> ResponseString("wip"))
+		  	req.respond(Json(index.snippets(id, query)))
+		  	
 		case req @ GET(Path(Seg("hl" :: dec(id) :: dec(query) :: Nil))) =>
-		  	req.respond(JsonContent ~> ResponseString(DocMatchRep(id, List(index.highlight(query, id))).toJson.toString))
+		  	req.respond(Json(id, index.highlight(id, query)))
+		  	
 		case req =>
 		    req.respond(NotFound ~> ResponseString("not found"))
+	}
+	
+	object Json {
+		private def create(s: Seq[DocMatchRep]) : ResponseFunction[HttpResponse] = 
+			JsonContent ~> ResponseString(s.toJson.toString)
+		def apply(m: DocMatchRep) : ResponseFunction[HttpResponse] =
+		  	create(List(m))
+		def apply(m: DocMatch) : ResponseFunction[HttpResponse] =
+		  	apply(DocMatchRep(m))
+		def apply(s: Seq[DocMatch]) : ResponseFunction[HttpResponse] =
+		  	create(s.map(DocMatchRep(_)))
+		def apply(id: String, s: String) : ResponseFunction[HttpResponse] =
+		  	apply(DocMatchRep(id, List(s)))
 	}
   
     private val s = Http(port).chunked(1048576).plan(handler)

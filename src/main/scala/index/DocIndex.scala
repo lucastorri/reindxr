@@ -94,6 +94,13 @@ case class DocumentDoc(basepath: String, d: Document) extends Doc with DocLoader
     
     def language = d.getFieldable(languageField).stringValue
 }
+case class NullDoc(id: String) extends Doc {
+	val timestamp = 0L
+	val contents = ""
+	val language = ""
+	val file = null
+	val document = null
+}
 
 trait DocConverter extends DocFields { self : Doc =>
   
@@ -140,6 +147,8 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
     import DocFields._
     private val logger = Logger[DocIndex]
     private val docFactory = config.docFactory
+    private val snippetHighlighter = config.highlighter(true)
+    private val fullDocHighlighter = config.highlighter(false)
 
     def insert(doc: Doc) : Unit = 
         if (doc.timestamp > timestampFor(doc)) withIndex { index =>
@@ -168,29 +177,29 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
         
     def snippets(query: String) : Seq[DocMatch] = 
         withIndex { index =>
-            val highlighter = config.highlighter(true)
-            index.search(query, searchLimit).map { r =>
-                val fq = highlighter.getFieldQuery(r.q)
-                DocMatch(
-                    docFactory(r.document),
-                    highlighter.getBestFragments(fq, r.reader, r.docId, contentField, maxNumOfFragment, highlightLimit)
-                )
-            }.seq
+            index.search(query, searchLimit).map (snippets(_)).seq
         }("Error when searching for " + query, List())
 
-    def highlight(query: String, id: String) : String = 
+    def snippets(id: String, query: String) : DocMatch =
+      	withIndex { index =>
+        	index.searchInId(id, query).map(snippets(_)).getOrElse(DocMatch(NullDoc(id)))
+        }("Error when searching for " + query, DocMatch(NullDoc(id)))
+        
+    private def snippets(r: SearchResult) = {
+        val fq = snippetHighlighter.getFieldQuery(r.q)
+		DocMatch(
+		    docFactory(r.document),
+		    snippetHighlighter.getBestFragments(fq, r.reader, r.docId, contentField, maxNumOfFragment, highlightLimit)
+		)
+    }
+        
+    def highlight(id: String, query: String) : String = 
         withIndex { index =>
-
-            val hl = config.highlighter(false)
-            val result = index.searchInId(id, query)
-            
-            result.map { r =>
-                  val d = docFactory(r.document)
-                  val fq = hl.getFieldQuery(r.q)
-                  val hls = hl.getBestFragments(fq, r.reader, r.docId, contentField, Int.MaxValue, highlightLimit)
-                  hls.headOption.getOrElse(d.contents)
+            index.searchInId(id, query).map { r =>
+                  val fq = fullDocHighlighter.getFieldQuery(r.q)
+                  val hls = fullDocHighlighter.getBestFragments(fq, r.reader, r.docId, contentField, Int.MaxValue, highlightLimit)
+                  hls.headOption.getOrElse(docFactory(r.document).contents)
             }.getOrElse("")
-
         }("Error when highlighting " + id + "with query " + query, "")
 
     private def withIndex[Ret](exec: IndexAdapter => Ret)(errorMsg: => String, defaultReturn: => Ret = () => null) : Ret = try {
