@@ -24,7 +24,7 @@ import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.store.FSDirectory.open
 import org.apache.lucene.store.Directory
-import org.apache.lucene.util.Version.LUCENE_31
+import org.apache.lucene.util.Version.LUCENE_36
 import org.apache.tika.detect.DefaultDetector
 import org.apache.tika.metadata.Metadata
 import org.apache.tika.parser.AutoDetectParser
@@ -120,7 +120,7 @@ trait DocReader { self : Doc =>
     
     private def read(f: File) = {
         val c = new BodyContentHandler(Int.MaxValue)
-        val m = new Metadata
+        val m = new MD
         parser.parse(new FileInputStream(f), c, m)
         c.toString
     }
@@ -224,7 +224,7 @@ case class SearchResult(score: Float, q: Query, reader: IndexReader, document: D
 
 case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String, postTag: Int => String, idField: String, contentField: String) {
       
-    val version = LUCENE_31
+    val version = LUCENE_36
   
     private val idQueryParser = 
         queryParser(idField, new KeywordAnalyzer)
@@ -310,20 +310,20 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
         def apply(lang: String, analyzer: Analyzer) = {
             val dir = new File(indexpath.getAbsolutePath + | + lang)
             dir.mkdirs
-            new LangDocIndexConfig(lang, analyzer, dir, open(dir))
+            new LangDocIndexConfig(lang, analyzer, open(dir))
         }
     }
-    class LangDocIndexConfig(val lang: String, val analyzer: Analyzer, val dir: File, idir: Directory) {
+    class LangDocIndexConfig(val lang: String, val analyzer: Analyzer, dir: Directory) {
         
         val writer = {
             val config = new IndexWriterConfig(version, analyzer).setOpenMode(CREATE_OR_APPEND)
-            new IndexWriter(idir, config)
+            new IndexWriter(dir, config)
         }
-        lazy val searcher = new IndexSearcher(idir)
+        def searcher = new IndexSearcher(IndexReader.open(writer, true))
         lazy val parser = queryParser(contentField, analyzer)
         
         def indexExists =
-            IndexReader.indexExists(idir)
+            IndexReader.indexExists(dir)
         
         def close = {
             try { searcher.close } catch { case e => }
