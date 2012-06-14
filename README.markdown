@@ -42,13 +42,19 @@ During a search, all the `index` subdirectories will be searched, using their re
 
 # rest api
 
-The HTTP server runs on port 8123 and was create using [Unfiltered](http://unfiltered.databinder.net/). There are two ways to access the index:
+The HTTP server runs on port 8123 and was create using [Unfiltered](http://unfiltered.databinder.net/). There are a few ways to access the index, which are explained below. All of them return responses in a Json format:
 
-* Searching: will return all the documents that match the given criteria (based on the Lucene search format) and snippets of the hits:
-> /search/#{your search criteria}
+* Searching: will return all documents that match the given criteria (based on the Lucene search format):
+> /search/#{search criteria}
+
+* Snippets: will return all documents that match the criteria plus snippets of those hits:
+> /snippets/#{search criteria}
+
+* File Snippet: returns the snippets matching the criteria on a given document:
+> /snippets/#{document id}/#{search criteria}
 
 * Highlighting: will retuned all the content of a single document, highlighting all the matches of the given criteria:
-> /hl/#{the highlighted file}/#{your search criteria}
+> /hl/#{document id}/#{search criteria}
 
 
 
