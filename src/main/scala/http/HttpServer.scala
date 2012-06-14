@@ -27,7 +27,6 @@ case class HttpServer(index: DocIndex, port: Int) {
   
 	val handler = async.Planify {
 		case req @ GET(Path(Seg("search" :: dec(query) :: Nil))) =>
-		  	println(query)
 		  	req.respond(JsonContent ~> ResponseString(index.search(query).map(DocMatchRep(_)).toJson.toString))
 		case req @ GET(Path(Seg("hl" :: dec(id) :: dec(query) :: Nil))) =>
 		  	req.respond(JsonContent ~> ResponseString(new DocMatchRep(id, List(index.highlight(query, id))).toJson.toString))
