@@ -1,15 +1,15 @@
 package co.torri.reindxr
 
 import java.io.File
-import co.torri.reindxr.http._
-import filemon.FileCreated
-import filemon.FileDeleted
-import filemon.FileEvent
-import filemon.FileModified
-import filemon.FileMonitor
-import http.HttpServer
-import index.DocIndex
-import index.Doc
+
+import co.torri.reindxr.filemon.FileCreated
+import co.torri.reindxr.filemon.FileDeleted
+import co.torri.reindxr.filemon.FileEvent
+import co.torri.reindxr.filemon.FileModified
+import co.torri.reindxr.filemon.FileMonitor
+import co.torri.reindxr.http.HttpServer
+import co.torri.reindxr.index.Doc
+import co.torri.reindxr.index.DocIndex
 import grizzled.slf4j.Logger
 
 

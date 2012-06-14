@@ -23,10 +23,13 @@ object DocMatchRep {
 
 case class HttpServer(index: DocIndex, port: Int) {
   
+	import Decode.{utf8 => dec}
+  
 	val handler = async.Planify {
-		case req @ GET(Path(Seg("search" :: query :: Nil))) =>
+		case req @ GET(Path(Seg("search" :: dec(query) :: Nil))) =>
+		  	println(query)
 		  	req.respond(JsonContent ~> ResponseString(index.search(query).map(DocMatchRep(_)).toJson.toString))
-		case req @ GET(Path(Seg("hl" :: id :: query :: Nil))) =>
+		case req @ GET(Path(Seg("hl" :: dec(id) :: dec(query) :: Nil))) =>
 		  	req.respond(JsonContent ~> ResponseString(new DocMatchRep(id, List(index.highlight(query, id))).toJson.toString))
 		case req =>
 		    req.respond(NotFound ~> ResponseString("not found"))
@@ -37,4 +40,20 @@ case class HttpServer(index: DocIndex, port: Int) {
     def start : Unit = s.start
     
     def stop : Unit = s.stop
+}
+
+object Decode {
+	import java.net.URLDecoder
+	import java.nio.charset.Charset
+
+	trait Decoder {
+		def charset: Charset
+		def unapply(encoded: String) = try {
+			Some(URLDecoder.decode(encoded, charset.name))
+		} catch { case _ => None }
+	}
+
+	object utf8 extends Decoder {
+		val charset = Charset.forName("utf8")
+	}
 }

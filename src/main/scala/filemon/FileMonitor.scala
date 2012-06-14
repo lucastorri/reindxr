@@ -7,9 +7,7 @@ import scala.Array.canBuildFrom
 import scala.annotation.tailrec
 
 
-sealed trait FileEvent {
-	def file: File
-}
+sealed trait FileEvent
 case class FileCreated(file: File) extends FileEvent
 case class FileDeleted(file: File) extends FileEvent
 case class FileModified(file: File) extends FileEvent
