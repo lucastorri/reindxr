@@ -4,7 +4,7 @@ organization := "co.torri"
 
 name := "reindxr"
 
-version := "0.5"
+version := "0.5.1"
 
 scalaVersion := "2.9.1"
 
