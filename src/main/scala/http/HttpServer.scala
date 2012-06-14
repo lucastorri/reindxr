@@ -16,9 +16,13 @@ import org.jboss.netty.handler.codec.http.HttpResponse
 import org.apache.lucene.document.Document
 import co.torri.reindxr.index.DocMatch
 
-case class DocMatchRep(id: String, matches: Seq[String] = List())
-object DocMatchRep {
-	def apply(d: DocMatch) : DocMatchRep = apply(d.doc.id, d.matches)
+trait Response
+case class MatchedResponse(id: String, matches: Seq[String]) extends Response
+case class UnmatchedRespose(id: String) extends Response
+object Response {
+	def apply(d: DocMatch) : Response = 
+		if (d.matches.isEmpty) UnmatchedRespose(d.doc.id)
+		else MatchedResponse(d.doc.id, d.matches)
 }
 
 case class HttpServer(index: DocIndex, port: Int) {
@@ -43,16 +47,16 @@ case class HttpServer(index: DocIndex, port: Int) {
 	}
 	
 	object Json {
-		private def create(s: Seq[DocMatchRep]) : ResponseFunction[HttpResponse] = 
+		private def create(s: Seq[Response]) : ResponseFunction[HttpResponse] = 
 			JsonContent ~> ResponseString(s.toJson.toString)
-		def apply(m: DocMatchRep) : ResponseFunction[HttpResponse] =
+		def apply(m: Response) : ResponseFunction[HttpResponse] =
 		  	create(List(m))
 		def apply(m: DocMatch) : ResponseFunction[HttpResponse] =
-		  	apply(DocMatchRep(m))
+		  	apply(Response(m))
 		def apply(s: Seq[DocMatch]) : ResponseFunction[HttpResponse] =
-		  	create(s.map(DocMatchRep(_)))
+		  	create(s.map(Response(_)))
 		def apply(id: String, s: String) : ResponseFunction[HttpResponse] =
-		  	apply(DocMatchRep(id, List(s)))
+		  	apply(MatchedResponse(id, List(s)))
 	}
   
     private val s = Http(port).chunked(1048576).plan(handler)
