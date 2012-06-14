@@ -2,6 +2,7 @@
 
 cd `dirname "$0"`
 rm -rf dist
+rm target/*.jar
 sbt assembly
 if [ $? -ne 0 ]
 then
