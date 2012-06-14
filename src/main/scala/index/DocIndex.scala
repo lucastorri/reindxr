@@ -177,7 +177,7 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
         
     def snippets(query: String) : Seq[DocMatch] = 
         withIndex { index =>
-            index.search(query, searchLimit).map (snippets(_)).seq
+            index.search(query, searchLimit).map(snippets(_)).seq
         }("Error when searching for " + query, List())
 
     def snippets(id: String, query: String) : DocMatch =
