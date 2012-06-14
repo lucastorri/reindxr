@@ -9,9 +9,9 @@ version := "0.5.1"
 scalaVersion := "2.9.1"
 
 libraryDependencies ++= Seq(
-  "org.apache.lucene" % "lucene-core" % "3.3.0",
-  "org.apache.lucene" % "lucene-highlighter" % "3.3.0",
-  "org.apache.lucene" % "lucene-analyzers" % "3.3.0",
+  "org.apache.lucene" % "lucene-core" % "3.6.0",
+  "org.apache.lucene" % "lucene-highlighter" % "3.6.0",
+  "org.apache.lucene" % "lucene-analyzers" % "3.6.0",
   "org.apache.tika" % "tika-parsers" % "1.1",
   "org.slf4j" % "slf4j-api" % "1.6.1",
   "org.clapper" %% "grizzled-slf4j" % "0.6.6",
