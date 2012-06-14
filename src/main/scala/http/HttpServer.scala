@@ -27,9 +27,9 @@ case class HttpServer(index: DocIndex, port: Int) {
   
 	val handler = async.Planify {
 	  	case req @ GET(Path(Seg("search" :: dec(query) :: Nil))) =>
-		  	req.respond(JsonContent ~> ResponseString(index.where(query).map(DocMatchRep(_)).toJson.toString))
-		case req @ GET(Path(Seg("snippets" :: dec(query) :: Nil))) =>
 		  	req.respond(JsonContent ~> ResponseString(index.search(query).map(DocMatchRep(_)).toJson.toString))
+		case req @ GET(Path(Seg("snippets" :: dec(query) :: Nil))) =>
+		  	req.respond(JsonContent ~> ResponseString(index.snippets(query).map(DocMatchRep(_)).toJson.toString))
 		case req @ GET(Path(Seg("snippets" :: dec(id) :: dec(query) :: Nil))) =>
 		  	req.respond(JsonContent ~> ResponseString("wip"))
 		case req @ GET(Path(Seg("hl" :: dec(id) :: dec(query) :: Nil))) =>

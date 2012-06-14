@@ -159,14 +159,14 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
             index.searchId(doc.id).map(_.getFieldable(timestampField).stringValue.toLong).getOrElse(0L)
         }("File not indexed " + doc.id, 0L)
 
-    def where(query: String) : Seq[DocMatch] =
+    def search(query: String) : Seq[DocMatch] =
       	withIndex { index => 
       	  	index.search(query, searchLimit).map{ r => 
       	  		DocMatch(docFactory(r.document))
       	  	}.seq
   	  	}("Error when searching for " + query, List())
         
-    def search(query: String) : Seq[DocMatch] = 
+    def snippets(query: String) : Seq[DocMatch] = 
         withIndex { index =>
             val highlighter = config.highlighter(true)
             index.search(query, searchLimit).map { r =>
