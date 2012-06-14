@@ -16,7 +16,7 @@ import org.jboss.netty.handler.codec.http.HttpResponse
 import org.apache.lucene.document.Document
 import co.torri.reindxr.index.DocMatch
 
-case class DocMatchRep(id: String, matches: Seq[String])
+case class DocMatchRep(id: String, matches: Seq[String] = List())
 object DocMatchRep {
 	def apply(d: DocMatch) : DocMatchRep = apply(d.doc.id, d.matches)
 }
@@ -26,10 +26,14 @@ case class HttpServer(index: DocIndex, port: Int) {
 	import Decode.{utf8 => dec}
   
 	val handler = async.Planify {
-		case req @ GET(Path(Seg("search" :: dec(query) :: Nil))) =>
+	  	case req @ GET(Path(Seg("search" :: dec(query) :: Nil))) =>
+		  	req.respond(JsonContent ~> ResponseString(index.where(query).map(DocMatchRep(_)).toJson.toString))
+		case req @ GET(Path(Seg("snippets" :: dec(query) :: Nil))) =>
 		  	req.respond(JsonContent ~> ResponseString(index.search(query).map(DocMatchRep(_)).toJson.toString))
+		case req @ GET(Path(Seg("snippets" :: dec(id) :: dec(query) :: Nil))) =>
+		  	req.respond(JsonContent ~> ResponseString("wip"))
 		case req @ GET(Path(Seg("hl" :: dec(id) :: dec(query) :: Nil))) =>
-		  	req.respond(JsonContent ~> ResponseString(new DocMatchRep(id, List(index.highlight(query, id))).toJson.toString))
+		  	req.respond(JsonContent ~> ResponseString(DocMatchRep(id, List(index.highlight(query, id))).toJson.toString))
 		case req =>
 		    req.respond(NotFound ~> ResponseString("not found"))
 	}

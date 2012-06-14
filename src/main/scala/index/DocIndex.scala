@@ -124,7 +124,7 @@ trait DocReader { self : Doc =>
 
 trait DocLoader extends DocConverter with DocReader { self: Doc => }
 
-case class DocMatch(doc: Doc, matches: Seq[String])
+case class DocMatch(doc: Doc, matches: Seq[String] = List())
 
 object DocIndex {
 
@@ -159,7 +159,14 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
             index.searchId(doc.id).map(_.getFieldable(timestampField).stringValue.toLong).getOrElse(0L)
         }("File not indexed " + doc.id, 0L)
 
-    def search(query: String): Seq[DocMatch] = 
+    def where(query: String) : Seq[DocMatch] =
+      	withIndex { index => 
+      	  	index.search(query, searchLimit).map{ r => 
+      	  		DocMatch(docFactory(r.document))
+      	  	}.seq
+  	  	}("Error when searching for " + query, List())
+        
+    def search(query: String) : Seq[DocMatch] = 
         withIndex { index =>
             val highlighter = config.highlighter(true)
             index.search(query, searchLimit).map { r =>
@@ -168,7 +175,7 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
                     docFactory(r.document),
                     highlighter.getBestFragments(fq, r.reader, r.docId, contentField, maxNumOfFragment, highlightLimit)
                 )
-            }
+            }.seq
         }("Error when searching for " + query, List())
 
     def highlight(query: String, id: String) : String = 
@@ -197,7 +204,7 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
 
 trait IndexAdapter {
     def insert(doc: Doc) : Unit
-    def search(query: String, limit: Int) : Seq[SearchResult]
+    def search(query: String, limit: Int) : ParSeq[SearchResult]
     def searchId(id: String) : Option[Document]
     def searchInId(id: String, query: String) : Option[SearchResult]
     def delete(doc: Doc) : Unit
@@ -261,21 +268,20 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
             w.commit
         }
         
-        def search(query: String, limit: Int) : Seq[SearchResult] =
-            try analyzers.filter(_.indexExists).flatMap { a =>
-                val qq = fq(contentField, query)
-                val q = a.parser.parse(qq)
+        def search(query: String, limit: Int) : ParSeq[SearchResult] =
+            try analyzers.flatMap { a =>
+                val q = a.parser.parse(fq(contentField, query))
                 a.searcher.search(q, limit).scoreDocs.distinct.map {d =>
                     SearchResult(d.score, q, a.searcher.getIndexReader, a.searcher.doc(d.doc), d.doc)
                 }
-            }.seq.sortBy(- _.score) catch { case e => logger.error("Error when searching", e); List() }
+            }.seq.sortBy(- _.score).par catch { case e => logger.error("Error when searching", e); ParSeq() }
           
         def searchId(id: String) : Option[Document] =
             searchInId(id, id).map(r => r.document)
 
         def searchInId(id: String, query: String) : Option[SearchResult] = try {
             val q = idQueryParser.parse(fq(idField, id))
-                analyzers.filter(_.indexExists).flatMap { a =>
+                analyzers.flatMap { a =>
                     a.searcher.search(q, 1).scoreDocs.map { d => 
                         val doc = a.searcher.doc(d.doc)
                         val q = a.parser.parse(fq(contentField, query))
