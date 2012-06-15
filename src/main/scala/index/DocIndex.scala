@@ -280,10 +280,10 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
         def search(query: String, limit: Int) : ParSeq[SearchResult] =
             try analyzers.flatMap { a =>
                 val q = a.parser.parse(fq(contentField, query))
-                a.searcher.search(q, limit).scoreDocs.distinct.map {d =>
+                a.searcher.search(q, limit).scoreDocs.map {d =>
                     SearchResult(d.score, q, a.searcher.getIndexReader, a.searcher.doc(d.doc), d.doc)
                 }
-            }.seq.sortBy(- _.score).par catch { case e => logger.error("Error when searching", e); ParSeq() }
+            } catch { case e => logger.error("Error when searching", e); ParSeq() }
           
         def searchId(id: String) : Option[Document] =
             searchInId(id, id).map(r => r.document)
