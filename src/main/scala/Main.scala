@@ -2,14 +2,9 @@ package co.torri.reindxr
 
 import java.io.File
 
-import co.torri.reindxr.filemon.FileCreated
-import co.torri.reindxr.filemon.FileDeleted
-import co.torri.reindxr.filemon.FileEvent
-import co.torri.reindxr.filemon.FileModified
-import co.torri.reindxr.filemon.FileMonitor
-import co.torri.reindxr.http.HttpServer
-import co.torri.reindxr.index.Doc
-import co.torri.reindxr.index.DocIndex
+import co.torri.reindxr.filemon._
+import co.torri.reindxr.http._
+import co.torri.reindxr.index._
 import grizzled.slf4j.Logger
 
 
@@ -28,11 +23,11 @@ object Main {
         logger.info("Creating index")
         val index = DocIndex(indexFolder, dataFolder)
         
-        implicit def file2doc(f: File) = Doc(dataFolder, f)
-        val eventHandler : PartialFunction[FileEvent, Unit] = {
-          	case FileCreated(file) => index.insert(file)
-            case FileModified(file) => index.insert(file)
-            case FileDeleted(file) => index.remove(file)
+        implicit def dataFile2doc(f: DataFile) = Doc(dataFolder, f)
+        val eventHandler : FileEvent => Unit = {
+          	case FileCreated(df) => index.insert(df)
+            case FileModified(df) => index.insert(df)
+            case FileDeleted(df) => index.remove(df)
         }
         
         logger.info("Creating monitor")
