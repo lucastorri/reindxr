@@ -251,7 +251,7 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
         queryParser(idField, new KeywordAnalyzer)
     
     private def fq(field: String, q: String) =
-          "%s:%s".format(field, q)
+          "%s:(%s)".format(field, q)
     
     private lazy val writers : ParSeq[IndexWriter] = 
         langs.values.toList.map(_.writer).par
