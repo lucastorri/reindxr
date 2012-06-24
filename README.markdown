@@ -58,6 +58,24 @@ The HTTP server runs on port 8123 and was create using [Unfiltered](http://unfil
 
 
 
+# metadata
+
+Given a file on the `data` directory, for instance, `document.pdf`, a file with the same name plus the `.metadata` extension can be added to add further information about that file. Following our example, the metadata file would be named `document.pdf.metadata`. This file must have the same extructure of a properties file (_key=value_). An example of the contents of such a file would be:
+
+> title=On the Origin of Species
+> author=Charles Robert Darwin
+> publishDate=-18941124
+
+Each key/pair avaialable will also be indexed, together with the document itself. Plus, each key will now become a searchable field, allowing a user of the rest API to do a search like:
+
+> /search/natual selection title:(Species Origin) author:(Darwin) publishDate:[18000101 TO 19000101]
+
+The [default Lucene Query Parser Syntax](http://lucene.apache.org/core/3_6_0/queryparsersyntax.html) is used for queries.
+
+A metadata file that has no companion file will not be added to the index. If any of the files are modified (the document or the metadata file) changes will automatically reflect on the index. To avoid index re-creation it is important to add the metadata file first, followed by the document file.
+
+
+
 # usage
 
 * To generate a jar: 
