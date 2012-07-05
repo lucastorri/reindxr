@@ -319,7 +319,7 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
             searchInId(id, id).map(r => r.document)
 
         def searchInId(id: String, query: String) : Option[SearchResult] = try {
-            val q = idQueryParser.parse(fq(idField, id))
+            val q = idQueryParser.parse(fq(idField, "\""+id+"\""))
                 analyzers.flatMap { a =>
                     a.searcher.search(q, 1).scoreDocs.map { d => 
                         val doc = a.searcher.doc(d.doc)
