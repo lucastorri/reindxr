@@ -17,12 +17,10 @@ import org.apache.lucene.document.Document
 import co.torri.reindxr.index.DocMatch
 
 trait Response
-case class MatchedResponse(id: String, matches: Seq[String]) extends Response
-case class UnmatchedRespose(id: String) extends Response
+case class MatchedResponse(id: String, matches: Seq[String], metadata: Map[String, String]) extends Response
 object Response {
 	def apply(d: DocMatch) : Response = 
-		if (d.matches.isEmpty) UnmatchedRespose(d.doc.id)
-		else MatchedResponse(d.doc.id, d.matches)
+		MatchedResponse(d.doc.id, d.matches, d.doc.metadata)
 }
 
 case class HttpServer(index: DocIndex, port: Int) {
@@ -40,7 +38,7 @@ case class HttpServer(index: DocIndex, port: Int) {
 		  	req.respond(Json(index.snippets(id, query)))
 		  	
 		case req @ GET(Path(Seg("hl" :: dec(id) :: dec(query) :: Nil))) =>
-		  	req.respond(Json(id, index.highlight(id, query)))
+		  	req.respond(Json(index.highlight(id, query)))
 		  	
 		case req =>
 		    req.respond(NotFound ~> ResponseString("not found"))
@@ -55,8 +53,6 @@ case class HttpServer(index: DocIndex, port: Int) {
 		  	apply(Response(m))
 		def apply(s: Seq[DocMatch]) : ResponseFunction[HttpResponse] =
 		  	create(s.map(Response(_)))
-		def apply(id: String, s: String) : ResponseFunction[HttpResponse] =
-		  	apply(MatchedResponse(id, List(s)))
 	}
   
     private val s = Http(port).chunked(1048576).plan(handler)

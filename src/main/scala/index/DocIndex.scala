@@ -51,6 +51,8 @@ trait DocFields {
     val metadataTimestampField = "metadataTimestamp" 
     val contentField = "contents"
     val languageField = "lang"
+    
+    val fields = Set(identifierField, timestampField, metadataTimestampField, contentField, languageField)
 }
 object DocFields extends DocFields
 
@@ -83,7 +85,7 @@ trait DocFactory {
     def apply(d: Document) : Doc
 }
 
-case class FileDoc(basepath: String, data: DataFile) extends Doc with DocLoader {
+case class FileDoc(basepath: String, data: DataFile) extends Doc with DocConverter with DocReader with MetadataReader {
     lazy val id = {
         val id = data.file.getAbsolutePath.replace(basepath, "")
         if (id.startsWith(|)) id.replace(|, "") else id
@@ -93,12 +95,12 @@ case class FileDoc(basepath: String, data: DataFile) extends Doc with DocLoader 
     lazy val language = new LanguageIdentifier(contents).getLanguage
 }
 
-case class DocumentDoc(basepath: String, d: Document) extends Doc with DocLoader {
-    lazy val id = d.getFieldable(identifierField).stringValue
-    lazy val timestamp = d.getFieldable(timestampField).stringValue.toLong
-    lazy val metadataTimestamp = d.getFieldable(metadataTimestampField).stringValue.toLong 
+case class DocumentDoc(basepath: String, document: Document) extends Doc with DocReader with MetadataExtractor {
+    lazy val id = document.getFieldable(identifierField).stringValue
+    lazy val timestamp = document.getFieldable(timestampField).stringValue.toLong
+    lazy val metadataTimestamp = document.getFieldable(metadataTimestampField).stringValue.toLong 
     def data = DataFile(new File(basepath + | + id))
-    def language = d.getFieldable(languageField).stringValue
+    def language = document.getFieldable(languageField).stringValue
 }
 
 case class NullDoc(id: String) extends Doc {
@@ -119,6 +121,13 @@ trait MetadataReader { self : Doc =>
   		p.map{ case (k,v) => (k.toString, v.toString) }.toMap
   	} else Map()
   	
+}
+
+trait MetadataExtractor extends DocFields { self: Doc =>
+  	
+  	def metadata : Map[String, String] =
+  	  	document.getFields.filterNot(f => fields.contains(f.name)).map(f => (f.name, f.stringValue)).toMap
+
 }
 
 trait DocConverter extends DocFields { self : Doc =>
@@ -152,7 +161,6 @@ trait DocReader { self : Doc =>
         read(data.file).toString
 }
 
-trait DocLoader extends DocConverter with DocReader with MetadataReader { self: Doc => }
 
 case class DocMatch(doc: Doc, matches: Seq[String] = List())
 
@@ -214,14 +222,15 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
 		)
     }
         
-    def highlight(id: String, query: String) : String = 
+    def highlight(id: String, query: String) : DocMatch = 
         withIndex { index =>
             index.searchInId(id, query).map { r =>
-                  val fq = fullDocHighlighter.getFieldQuery(r.q)
-                  val hls = fullDocHighlighter.getBestFragments(fq, r.reader, r.docId, contentField, Int.MaxValue, highlightLimit)
-                  hls.headOption.getOrElse(docFactory(r.document).contents)
-            }.getOrElse("")
-        }("Error when highlighting " + id + "with query " + query, "")
+                 val fq = fullDocHighlighter.getFieldQuery(r.q)
+                 val hls = fullDocHighlighter.getBestFragments(fq, r.reader, r.docId, contentField, Int.MaxValue, highlightLimit)
+                 val s = hls.headOption.getOrElse(docFactory(r.document).contents)
+                 DocMatch(docFactory(r.document), List(s))
+            }.getOrElse(DocMatch(NullDoc(id)))
+        }("Error when highlighting " + id + "with query " + query, DocMatch(NullDoc(id)))
 
     private def withIndex[Ret](exec: IndexAdapter => Ret)(errorMsg: => String, defaultReturn: => Ret = () => null) : Ret = try {
         exec(config.indexAdapter)
