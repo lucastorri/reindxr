@@ -1,6 +1,7 @@
 package co.torri.reindxr.index
 
 import org.apache.lucene.analysis.Analyzer
+import scala.collection.mutable.Buffer
 import org.apache.lucene.analysis.LowerCaseFilter
 import org.apache.lucene.analysis.PorterStemFilter
 import org.apache.lucene.analysis.StopFilter
@@ -54,8 +55,8 @@ case class TagFragmentBuilder(docFactory: DocFactory, snippetsOnly: Boolean, pre
 				subInfo <- fragInfo.getSubInfos
 				termOffset <- subInfo.getTermsOffsets
 			} yield (termOffset.getStartOffset, termOffset.getEndOffset, subInfo.getSeqnum)
-		
-		val fragments = termPositions.groupBy { case (termStart, termEnd, seqnum) =>
+					
+		var fragments = termPositions.groupBy { case (termStart, termEnd, seqnum) =>
 			val startFragPosition = 
 				if (snippetsOnly) Some(source.lastIndexOf('\n', termStart)).map(index => if (index < 0) 0 else index + 1).get
 				else 0
@@ -71,7 +72,7 @@ case class TagFragmentBuilder(docFactory: DocFactory, snippetsOnly: Boolean, pre
 				buf
 					.append(source.substring(lastAppended, termStart))
 					.append(preTag(seqnum))
-					.append(source.substring(termStart,termEnd))
+					.append(source.substring(termStart, termEnd))
 					.append(postTag(seqnum))
 				
 				termEnd
@@ -80,7 +81,20 @@ case class TagFragmentBuilder(docFactory: DocFactory, snippetsOnly: Boolean, pre
 			buf.append(source.substring(lastAppended, endFragPosition)).toString
 		}
 		
-		fragments.toArray
+		if (snippetsOnly && fragments.size < maxFragmentsPerFile) {
+			val b = fragments.toBuffer
+			source.linesWithSeparators.toList.takeWhile { l =>
+			  	if (!l.trim.isEmpty && !b.contains(l)) {
+			  		b += l
+			  	}
+			  	(b.size < maxFragmentsPerFile)
+			}
+			b.toArray
+		} else if (!snippetsOnly && fragments.isEmpty) {
+			Array(source)
+		} else {
+			fragments
+		}.toArray
     }
 	
 }
