@@ -1,20 +1,15 @@
 package co.torri.reindxr.http
 
-import co.torri.jsonr.any2json
 import co.torri.reindxr.index.DocIndex
 import unfiltered.netty.Http
 import unfiltered.netty.async
-import unfiltered.request.GET
-import unfiltered.request.Path
-import unfiltered.request.Seg
-import unfiltered.response.JsonContent
-import unfiltered.response.PlainTextContent
-import unfiltered.response.ResponseString
 import unfiltered.request._
 import unfiltered.response._
 import org.jboss.netty.handler.codec.http.HttpResponse
-import org.apache.lucene.document.Document
 import co.torri.reindxr.index.DocMatch
+import org.json4s._
+import org.json4s.native.Serialization
+import org.json4s.native.Serialization.{read, write}
 
 trait Response
 case class MatchedResponse(id: String, matches: Seq[String], metadata: Map[String, String]) extends Response
@@ -27,8 +22,8 @@ case class HttpServer(index: DocIndex, port: Int) {
   
 	import Decode.{utf8 => dec}
   
-	val handler = async.Planify {
-	  	case req @ GET(Path(Seg("search" :: dec(query) :: Nil))) =>
+	val handler = async.Planify.apply {
+	  case req @ GET(Path(Seg("search" :: dec(query) :: Nil))) =>
 		  	req.respond(Json(index.search(query)))
 		  	
 		case req @ GET(Path(Seg("snippets" :: dec(query) :: Nil))) =>
@@ -45,8 +40,10 @@ case class HttpServer(index: DocIndex, port: Int) {
 	}
 	
 	object Json {
+    implicit val formats = Serialization.formats(NoTypeHints)
+
 		private def create(s: Seq[Response]) : ResponseFunction[HttpResponse] = 
-			JsonContent ~> ResponseString(s.toJson.toString)
+			JsonContent ~> ResponseString(write(s))
 		def apply(m: Response) : ResponseFunction[HttpResponse] =
 		  	create(List(m))
 		def apply(m: DocMatch) : ResponseFunction[HttpResponse] =
@@ -70,7 +67,7 @@ object Decode {
 		def charset: Charset
 		def unapply(encoded: String) = try {
 			Some(URLDecoder.decode(encoded, charset.name))
-		} catch { case _ => None }
+		} catch { case _: Exception => None }
 	}
 
 	object utf8 extends Decoder {

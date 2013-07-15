@@ -4,40 +4,30 @@ import co.torri.reindxr.filemon.DataFile
 import java.io.File.{separator => |}
 import java.io.File
 import java.io.FileInputStream
-import java.io.FileReader
-import scala.Array.canBuildFrom
 import scala.collection.JavaConversions._
 import org.apache.lucene.analysis.br.BrazilianAnalyzer
 import org.apache.lucene.analysis.en.EnglishAnalyzer
 import org.apache.lucene.analysis.Analyzer
-import org.apache.lucene.analysis.KeywordAnalyzer
+import org.apache.lucene.analysis.core.KeywordAnalyzer
 import org.apache.lucene.document.Field.Index
 import org.apache.lucene.document.Field.Store
 import org.apache.lucene.document.Field.TermVector
-import org.apache.lucene.document.Document
-import org.apache.lucene.document.Field
+import org.apache.lucene.document.{StringField, Document, Field}
 import org.apache.lucene.index.IndexWriterConfig.OpenMode.CREATE_OR_APPEND
-import org.apache.lucene.index.IndexReader
-import org.apache.lucene.index.IndexWriter
-import org.apache.lucene.index.IndexWriterConfig
-import org.apache.lucene.index.Term
-import org.apache.lucene.queryParser.QueryParser
+import org.apache.lucene.index._
+import org.apache.lucene.queryparser.classic.QueryParser
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter
 import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.store.FSDirectory.open
 import org.apache.lucene.store.Directory
-import org.apache.lucene.util.Version.LUCENE_36
+import org.apache.lucene.util.Version.LUCENE_43
 import org.apache.tika.detect.DefaultDetector
 import org.apache.tika.metadata.{Metadata => MD}
 import org.apache.tika.parser.AutoDetectParser
 import org.apache.tika.sax.BodyContentHandler
-import DocFields.contentField
-import DocFields.identifierField
-import DocFields.timestampField
 import grizzled.slf4j.Logger
 import org.apache.tika.language.LanguageIdentifier
-import scala.collection.GenSeq
 import org.apache.lucene.search.Query
 import scala.collection.parallel.ParSeq
 import java.util.Properties
@@ -96,11 +86,11 @@ case class FileDoc(basepath: String, data: DataFile) extends Doc with DocConvert
 }
 
 case class DocumentDoc(basepath: String, document: Document) extends Doc with DocReader with MetadataExtractor {
-    lazy val id = document.getFieldable(identifierField).stringValue
-    lazy val timestamp = document.getFieldable(timestampField).stringValue.toLong
-    lazy val metadataTimestamp = document.getFieldable(metadataTimestampField).stringValue.toLong 
+    lazy val id = document.getField(identifierField).stringValue
+    lazy val timestamp = document.getField(timestampField).stringValue.toLong
+    lazy val metadataTimestamp = document.getField(metadataTimestampField).stringValue.toLong
     def data = DataFile(new File(basepath + | + id))
-    def language = document.getFieldable(languageField).stringValue
+    def language = document.getField(languageField).stringValue
 }
 
 case class NullDoc(id: String) extends Doc {
@@ -137,10 +127,10 @@ trait DocConverter extends DocFields { self : Doc =>
         metadata.foreach { case (field, value) =>
           	d.add(new Field(field, value, Store.YES, Index.ANALYZED))
         }
-        d.add(new Field(identifierField, self.id, Store.YES, Index.NOT_ANALYZED))
-        d.add(new Field(timestampField, self.timestamp.toString, Store.YES, Index.NOT_ANALYZED))
-        d.add(new Field(metadataTimestampField, self.metadataTimestamp.toString, Store.YES, Index.NOT_ANALYZED))
-        d.add(new Field(languageField, self.language, Store.YES, Index.NOT_ANALYZED))
+        d.add(new StringField(identifierField, self.id, Store.YES))
+        d.add(new StringField(timestampField, self.timestamp.toString, Store.YES))
+        d.add(new StringField(metadataTimestampField, self.metadataTimestamp.toString, Store.YES))
+        d.add(new StringField(languageField, self.language, Store.YES))
         d.add(new Field(contentField, self.contents, Store.NO, Index.ANALYZED, TermVector.WITH_POSITIONS_OFFSETS))
         d
     }
@@ -234,7 +224,7 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
 
     private def withIndex[Ret](exec: IndexAdapter => Ret)(errorMsg: => String, defaultReturn: => Ret = () => null) : Ret = try {
         exec(config.indexAdapter)
-    } catch { case e => logger.error(errorMsg, e); defaultReturn }
+    } catch { case e: Exception => logger.error(errorMsg, e); defaultReturn }
 
     def close =
         config.close
@@ -254,7 +244,7 @@ case class SearchResult(score: Float, q: Query, reader: IndexReader, document: D
 
 case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String, postTag: Int => String, idField: String, contentField: String) {
       
-    val version = LUCENE_36
+    val version = LUCENE_43
   
     private val idQueryParser = 
         queryParser(idField, new KeywordAnalyzer)
@@ -278,7 +268,7 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
 
     private def queryParser(fieldName: String, analyzer: Analyzer) = {
         val parser = new QueryParser(version, fieldName, analyzer)
-        parser.setDefaultOperator(QueryParser.AND_OPERATOR)
+        parser.setDefaultOperator(QueryParser.Operator.AND)
         parser
     }
     
@@ -313,7 +303,7 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
                 a.searcher.search(q, limit).scoreDocs.map {d =>
                     SearchResult(d.score, q, a.searcher.getIndexReader, a.searcher.doc(d.doc), d.doc)
                 }
-            } catch { case e => logger.error("Error when searching", e); ParSeq() }
+            } catch { case e: Exception => logger.error("Error when searching", e); ParSeq() }
           
         def searchId(id: String) : Option[Document] =
             searchInId(id, id).map(r => r.document)
@@ -327,7 +317,7 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
                         SearchResult(d.score, q, a.searcher.getIndexReader, doc, d.doc)
                     }
                 }.seq.headOption
-        } catch { case e => logger.error("Error when id searching", e); None }
+        } catch { case e: Exception => logger.error("Error when id searching", e); None }
               
         def delete(doc: Doc) : Unit =
             writers.foreach(_.deleteDocuments(new Term(idField, doc.id)))
@@ -349,15 +339,14 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
             val config = new IndexWriterConfig(version, analyzer).setOpenMode(CREATE_OR_APPEND)
             new IndexWriter(dir, config)
         }
-        def searcher = new IndexSearcher(IndexReader.open(writer, true))
+        def searcher = new IndexSearcher(DirectoryReader.open(writer, true))
         lazy val parser = queryParser(contentField, analyzer)
         
         def indexExists =
-            IndexReader.indexExists(dir)
+          DirectoryReader.indexExists(dir)
         
         def close = {
-            try { searcher.close } catch { case e => }
-            try { writer.close } catch { case e => }
+            try { writer.close } catch { case e: Exception => }
         }
         
         def toPair = (lang, this)

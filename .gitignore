@@ -5,3 +5,5 @@ target
 .settings
 log
 dist
+.idea
+.idea_modules
