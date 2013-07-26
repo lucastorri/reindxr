@@ -26,6 +26,7 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
   watch(dir)
 
   private val thread = new Thread {
+
     override def run = {
       try {
         while (!Thread.currentThread().isInterrupted) {
@@ -57,6 +58,7 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
         watcher.close()
       }
     }
+
   }
 
   def start() =
