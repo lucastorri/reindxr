@@ -38,7 +38,8 @@ case class HttpServer(indexes: DocIndexes, port: Int) {
       req.respond(NotFound ~> ResponseString("not found"))
 	}
 
-  private val userNotFound = Json("error" -> "user.notFound")
+  private val userNotFound =
+    NotFound ~> Json("error" -> "user.notFound")
 
   private def json(username: String)(f: DocIndex => ResponseFunction[HttpResponse]) : ResponseFunction[HttpResponse] =
     indexes.index(username).map(f).getOrElse(userNotFound)
