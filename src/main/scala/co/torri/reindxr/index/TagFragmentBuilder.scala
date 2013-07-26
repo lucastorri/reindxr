@@ -72,12 +72,14 @@ case class TagFragmentBuilder(docs: Docs, snippetsOnly: Boolean, preTag: Int => 
 
   case class MatchedTerm(text: MatchedText, start: Int, end: Int, number: Int) {
 
+    val stop = '\n'
+
     val line = {
       val startFragPosition =
-        if (snippetsOnly) Some(text.source.lastIndexOf('\n', start)).map(index => if (index < 0) 0 else index + 1).get
+        if (snippetsOnly) Some(text.source.lastIndexOf(stop, start)).filter(_ >= 0).map(_ + 1).getOrElse(0)
         else 0
       val endFragPosition =
-        if (snippetsOnly) Some(text.source.indexOf('\n', end)).map(index => if (index < 0) text.source.size else index).get
+        if (snippetsOnly) Some(text.source.indexOf(stop, end)).filter(_ >= 0).getOrElse(text.source.size)
         else text.source.size
       Line(text, startFragPosition, endFragPosition)
     }
