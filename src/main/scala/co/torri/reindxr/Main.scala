@@ -39,7 +39,7 @@ object Main {
         Runtime.getRuntime.addShutdownHook(new Thread {
             override def run = {
             	server.stop
-                monitor.stop
+                monitor.close
                 index.close
             }
         })

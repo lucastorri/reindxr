@@ -9,7 +9,7 @@ import org.jboss.netty.handler.codec.http.HttpResponse
 import co.torri.reindxr.index.DocMatch
 import org.json4s._
 import org.json4s.native.Serialization
-import org.json4s.native.Serialization.{read, write}
+import org.json4s.native.Serialization.write
 
 trait Response
 case class MatchedResponse(id: String, matches: Seq[String], metadata: Map[String, String]) extends Response
