@@ -11,16 +11,19 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
 
   private val watcher = dir.getFileSystem.newWatchService()
 
+  //TODO fire events for files that already exist
+
   private def watch(path: Path) = {
     def w(path: Path) = dir.register(watcher, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY, OVERFLOW)
-
-    w(path)
-    if (path.toFile.isDirectory) Files.walkFileTree(dir, new SimpleFileVisitor[Path] {
-      override def preVisitDirectory(dir: Path, attrs: BasicFileAttributes) = {
-        w(dir)
-        FileVisitResult.CONTINUE
-      }
-    })
+    if (path.toFile.isDirectory) {
+      w(path)
+      Files.walkFileTree(path, new SimpleFileVisitor[Path] {
+        override def preVisitDirectory(dir: Path, attributes: BasicFileAttributes) = {
+          w(dir)
+          FileVisitResult.CONTINUE
+        }
+      })
+    }
   }
 
   watch(dir)
@@ -35,19 +38,19 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
             val relativePath = e.context().asInstanceOf[Path]
             val path = key.watchable().asInstanceOf[Path].resolve(relativePath)
             val file = DataFile(path.toFile)
+            val isFile = path.toFile.isFile
+            println("file", e.kind, path.toFile)
             e.kind match {
               case ENTRY_CREATE =>
                 watch(path)
-                handler(FileCreated(file))
+                if (isFile) handler(FileCreated(file))
               case ENTRY_MODIFY =>
-                handler(FileModified(file))
+                if (isFile) handler(FileModified(file))
               case ENTRY_DELETE =>
-                handler(FileDeleted(file))
+                if (isFile) handler(FileDeleted(file))
               case OVERFLOW =>
                 println(s"overflow on ${path}")
             }
-            println(path.toFile)
-            println(e.kind)
           }
           key.reset
         }
@@ -61,8 +64,10 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
 
   }
 
-  def start() =
+  def start() = {
     thread.start()
+    this
+  }
 
   def close() =
     thread.interrupt()

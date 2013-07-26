@@ -23,7 +23,7 @@ import scala.collection.parallel.ParSeq
 
 object DocIndex {
 
-  private val preTag = (i: Int) => s"<span class=\"highlight${i}\">"
+  private val preTag = (i: Int) => s"""<span class="highlight${i}">"""
   private val postTag = (i: Int) => "</span>"
   
   def apply(indexDir: File, dataDir: File) : DocIndex =
@@ -212,7 +212,7 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
       searchInId(id, id).map(r => r.document)
 
     def searchInId(id: String, query: String) : Option[SearchResult] = try {
-      val q = idQueryParser.parse(fq(idField, s"\"${id}\""))
+      val q = idQueryParser.parse(fq(idField, s""" "${id}" """.trim))
       analyzers.flatMap { a =>
         a.searcher.search(q, 1).scoreDocs.map { d =>
           val doc = a.searcher.doc(d.doc)

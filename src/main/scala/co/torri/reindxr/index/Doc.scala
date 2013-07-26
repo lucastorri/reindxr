@@ -84,7 +84,7 @@ case class NullDoc(id: String) extends Doc {
   val language = ""
   val data = null
   val document = null
-  val metadata = Map()
+  val metadata = Map[String, String]()
 }
 
 trait MetadataReader { self : Doc =>
