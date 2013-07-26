@@ -11,11 +11,13 @@ import java.io.File
 import co.torri.reindxr.filemon.FileModified
 import co.torri.reindxr.filemon.FileDeleted
 import co.torri.reindxr.filemon.FileCreated
+import grizzled.slf4j.Logging
 
 
-case class UsersMonitor(dataDir: Path, indexDir: Path) {
+case class UsersMonitor(dataDir: Path, indexDir: Path) extends Logging {
 
-  private val users = mutable.Map[String, (FileMonitor, DocIndex)]()
+  private type User = (FileMonitor, DocIndex)
+  private val users = mutable.Map[String, User]()
   private val watcher = dataDir.getFileSystem.newWatchService()
 
   //TODO fire events for files that already exist
@@ -33,7 +35,6 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) {
             val path = key.watchable().asInstanceOf[Path].resolve(relativePath)
             val file = path.toFile
             val username = file.getName
-            println("user", e.kind, path.toFile)
             if (file.isDirectory) e.kind match {
               case ENTRY_CREATE =>
                 val userIndexDir = new File(indexDir.toFile, username)
@@ -42,20 +43,19 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) {
                 val userIndex = DocIndex(userIndexDir, userDataDir)
                 val userMonitor = FileMonitor(file, handler(userIndex, userDataDir))
                 users += (username -> (userMonitor.start, userIndex))
+                logger.info(s"User added: ${username}")
               case ENTRY_DELETE =>
-                users.remove(username).foreach { case (m, i) =>
-                  m.close
-                  i.close
-                }
+                close(users.remove(username))
+                logger.info(s"User removed: ${username}")
               case OVERFLOW =>
-                println(s"overflow on ${path}")
+                logger.error(s"Overflow on ${path}")
             }
           }
           key.reset
         }
       } catch {
         case e: Exception =>
-          e.printStackTrace
+          logger.error("UsersMonitor error", e)
       } finally {
         watcher.close()
       }
@@ -63,20 +63,32 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) {
 
   }
 
+  def index(username: String) : Option[DocIndex] =
+    users.get(username).map { case (m, i) => i }
+
+  def start() = {
+    logger.info("Starting UsersMonitor")
+    thread.start()
+  }
+
+  def close() = {
+    logger.info("Stopping UsersMonitor")
+    watcher.close()
+    thread.interrupt()
+    close(users.values)
+  }
+
+  private def close(users: Iterable[User]) =
+    users.foreach { case (m, i) =>
+      m.close
+      i.close
+    }
+
   private def handler(index: DocIndex, dataDir: File) : FileEvent => Unit = {
     case FileCreated(df) => index.insert(Doc(dataDir, df))
     case FileModified(df) => index.insert(Doc(dataDir, df))
     case FileDeleted(df) => index.remove(Doc(dataDir, df))
   }
-
-  def index(username: String) : Option[DocIndex] =
-    users.get(username).map { case (m, i) => i }
-
-  def start() =
-    thread.start()
-
-  def close() =
-    thread.interrupt() //TODO close each of the users
 }
 object UsersMonitor {
 

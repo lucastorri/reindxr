@@ -5,9 +5,10 @@ import java.nio.file.StandardWatchEventKinds._
 import java.nio.file.attribute.BasicFileAttributes
 import scala.collection.JavaConversions._
 import java.io.File
+import grizzled.slf4j.Logging
 
 
-case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoCloseable {
+case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoCloseable with Logging {
 
   private val watcher = dir.getFileSystem.newWatchService()
 
@@ -39,24 +40,32 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
             val path = key.watchable().asInstanceOf[Path].resolve(relativePath)
             val file = DataFile(path.toFile)
             val isFile = path.toFile.isFile
-            println("file", e.kind, path.toFile)
             e.kind match {
               case ENTRY_CREATE =>
                 watch(path)
-                if (isFile) handler(FileCreated(file))
+                if (isFile) {
+                  logger.debug(s"File created on FileMonitor[${dir}]: ${file}")
+                  handler(FileCreated(file))
+                }
               case ENTRY_MODIFY =>
-                if (isFile) handler(FileModified(file))
+                if (isFile) {
+                  logger.debug(s"File modified on FileMonitor[${dir}]: ${file}")
+                  handler(FileModified(file))
+                }
               case ENTRY_DELETE =>
-                if (isFile) handler(FileDeleted(file))
+                if (isFile) {
+                  logger.debug(s"File deleted on FileMonitor[${dir}]: ${file}")
+                  handler(FileDeleted(file))
+                }
               case OVERFLOW =>
-                println(s"overflow on ${path}")
+                println(s"Overflow on FileMonitor[${dir}}]: ${file}")
             }
           }
           key.reset
         }
       } catch {
         case e: Exception =>
-          e.printStackTrace
+          logger.error(s"Error on FileMonitor[${dir}]", e)
       } finally {
         watcher.close()
       }
@@ -65,12 +74,16 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
   }
 
   def start() = {
+    logger.info(s"Starting FileMonitor[${dir}]")
     thread.start()
     this
   }
 
-  def close() =
+  def close() = {
+    logger.info(s"Closing FileMonitor[${dir}]")
+    watcher.close()
     thread.interrupt()
+  }
 
 }
 object FileMonitor {
