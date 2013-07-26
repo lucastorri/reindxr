@@ -44,36 +44,36 @@ trait Doc {
   def newerThan(d: Doc) = timestamp > d.timestamp || metadataTimestamp > d.metadataTimestamp
 }
 object Doc {
-  private implicit def file2string(f: File) = f.getCanonicalPath
-  def apply(basepath: File, f: DataFile) = FileDoc(basepath, f)
-  def apply(basepath: File, d: Document) = DocumentDoc(basepath, d)
-  def factory(basepath: File) : DocFactory = new DocFactory {
+  def apply(base: File, f: DataFile) = FileDoc(base.getCanonicalPath, f)
+  def apply(base: File, d: Document) = DocumentDoc(base.getCanonicalPath, d)
+
+  def docs(base: File) : Docs = new Docs {
     def apply(f: File) = apply(DataFile(f))
-    def apply(f: DataFile) = Doc(basepath, f)
-    def apply(d: Document) = Doc(basepath, d)
+    def apply(f: DataFile) = Doc(base, f)
+    def apply(d: Document) = Doc(base, d)
   }
 }
 
-trait DocFactory {
+sealed trait Docs {
   def apply(f: File) : Doc
   def apply(d: Document) : Doc
 }
 
-case class FileDoc(basepath: String, data: DataFile) extends Doc with DocConverter with DocReader with MetadataReader {
+case class FileDoc(base: String, data: DataFile) extends Doc with DocConverter with DocReader with MetadataReader {
   lazy val id = {
-    val id = data.file.getAbsolutePath.replace(basepath, "")
+    val id = data.file.getAbsolutePath.replace(base, "")
     if (id.startsWith(|)) id.replace(|, "") else id
   }
   def timestamp = data.file.lastModified
-  def metadataTimestamp = if (data.metadata.exists) data.metadata.lastModified else 0L
+  def metadataTimestamp = if (data.hasMetadata) data.metadata.lastModified else 0L
   lazy val language = new LanguageIdentifier(contents).getLanguage
 }
 
-case class DocumentDoc(basepath: String, document: Document) extends Doc with DocReader with MetadataExtractor {
+case class DocumentDoc(base: String, document: Document) extends Doc with DocReader with MetadataExtractor {
   lazy val id = document.getField(identifierField).stringValue
   lazy val timestamp = document.getField(timestampField).stringValue.toLong
   lazy val metadataTimestamp = document.getField(metadataTimestampField).stringValue.toLong
-  def data = DataFile(new File(basepath + | + id))
+  def data = DataFile(new File(base + | + id))
   def language = document.getField(languageField).stringValue
 }
 
@@ -145,4 +145,4 @@ trait DocReader { self : Doc =>
 }
 
 
-case class DocMatch(doc: Doc, matches: Seq[String] = List())
+case class DocMatch(doc: Doc, matches: Seq[String] = Seq())

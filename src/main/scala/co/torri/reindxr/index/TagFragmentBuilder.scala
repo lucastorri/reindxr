@@ -7,7 +7,7 @@ import org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder
 import scala.collection.JavaConversions._
 
 
-case class TagFragmentBuilder(docFactory: DocFactory, snippetsOnly: Boolean, preTag: Int => String, postTag: Int => String) extends SimpleFragmentsBuilder(Array(preTag(0)), Array(postTag(0))) {
+case class TagFragmentBuilder(docFactory: Docs, snippetsOnly: Boolean, preTag: Int => String, postTag: Int => String) extends SimpleFragmentsBuilder(Array(preTag(0)), Array(postTag(0))) {
 	
 	private val maxFragmentsPerFile = 3
 		

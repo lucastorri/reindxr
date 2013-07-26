@@ -7,6 +7,8 @@ case class DataFile private(file: File, metadata: File) {
 
   def isValid = file.exists
 
+  def hasMetadata = metadata.exists
+
 }
 object DataFile {
   val metadataExtension = ".metadata"

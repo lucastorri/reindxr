@@ -141,7 +141,7 @@ trait IndexAdapter {
 
 case class SearchResult(score: Float, q: Query, reader: IndexReader, document: Document, docId: Int)
 
-case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String, postTag: Int => String, idField: String, contentField: String) {
+case class DocIndexConfig(indexDir: File, sourceDir: File, preTag: Int => String, postTag: Int => String, idField: String, contentField: String) {
 
   val version = LUCENE_43
 
@@ -152,12 +152,12 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
     "%s:(%s)".format(field, q)
 
   private lazy val writers : ParSeq[IndexWriter] =
-    langs.values.toList.map(_.writer).par
+    languages.values.toList.map(_.writer).par
 
   private lazy val analyzers : ParSeq[LangDocIndexConfig] =
-    langs.values.toList.par
+    languages.values.toList.par
 
-  val langs = {
+  val languages = {
     val defaultFactory = LangDocIndexConfig("en", new EnglishAnalyzer(version))
     Map(
       defaultFactory.toPair,
@@ -181,7 +181,7 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
     new DefaultIndexAdapter
 
   lazy val docFactory =
-    Doc.factory(basepath)
+    Doc.docs(sourceDir)
 
   def close =
     analyzers.foreach(_.close)
@@ -191,7 +191,7 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
     private val logger = Logger[DefaultIndexAdapter]
 
     def insert(doc: Doc) : Unit = {
-      val w = langs(doc.language).writer
+      val w = languages(doc.language).writer
       w.addDocument(doc.document)
       w.commit
     }
@@ -230,12 +230,12 @@ case class DocIndexConfig(indexpath: File, basepath: File, preTag: Int => String
       writers.foreach(_.deleteDocuments(new Term(idField, doc.id)))
 
     def close =
-      langs.values.foreach(_.close)
+      languages.values.foreach(_.close)
   }
 
   object LangDocIndexConfig {
     def apply(lang: String, analyzer: Analyzer) = {
-      val dir = new File(indexpath.getAbsolutePath + | + lang)
+      val dir = new File(indexDir.getAbsolutePath + | + lang)
       dir.mkdirs
       new LangDocIndexConfig(lang, analyzer, open(dir))
     }
