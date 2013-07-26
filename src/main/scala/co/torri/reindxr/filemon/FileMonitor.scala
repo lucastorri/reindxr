@@ -23,7 +23,7 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
           FileVisitResult.CONTINUE
         }
         override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
-          logger.info(s"File existing [${dir}]: ${file}")
+          logger.info(s"File exists [${dir}]: ${file}")
           handler(FileCreated(DataFile(file.toFile)))
           FileVisitResult.CONTINUE
         }
