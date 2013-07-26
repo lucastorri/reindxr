@@ -20,8 +20,7 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends Logging {
   private val users = mutable.Map[String, User]()
   private val watcher = dataDir.getFileSystem.newWatchService()
 
-  //TODO fire events for files that already exist
-
+  dataDir.toFile.listFiles.foreach(addUser)
   dataDir.register(watcher, ENTRY_CREATE, ENTRY_DELETE, OVERFLOW)
 
   private val thread = new Thread {
@@ -34,28 +33,17 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends Logging {
             val relativePath = e.context().asInstanceOf[Path]
             val path = key.watchable().asInstanceOf[Path].resolve(relativePath)
             val file = path.toFile
-            val username = file.getName
-            if (file.isDirectory) e.kind match {
-              case ENTRY_CREATE =>
-                val userIndexDir = new File(indexDir.toFile, username)
-                userIndexDir.mkdir()
-                val userDataDir = file
-                val userIndex = DocIndex(userIndexDir, userDataDir)
-                val userMonitor = FileMonitor(file, handler(userIndex, userDataDir))
-                users += (username -> (userMonitor.start, userIndex))
-                logger.info(s"User added: ${username}")
-              case ENTRY_DELETE =>
-                close(users.remove(username))
-                logger.info(s"User removed: ${username}")
-              case OVERFLOW =>
-                logger.error(s"Overflow on ${path}")
+            e.kind match {
+              case ENTRY_CREATE => addUser(file)
+              case ENTRY_DELETE => removeUser(file)
+              case OVERFLOW => logger.error(s"Overflow on ${path}")
             }
           }
           key.reset
         }
       } catch {
         case e: Exception =>
-          logger.error("UsersMonitor error", e)
+          logger.error("Error", e)
       } finally {
         watcher.close()
       }
@@ -63,16 +51,32 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends Logging {
 
   }
 
+  private def addUser(userDataDir: File) = if (userDataDir.isDirectory) {
+    val username = userDataDir.getName
+    val userIndexDir = new File(indexDir.toFile, username)
+    userIndexDir.mkdir()
+    val userIndex = DocIndex(userIndexDir, userDataDir)
+    val userMonitor = FileMonitor(userDataDir, handler(userIndex, userDataDir))
+    users += (username ->(userMonitor.start, userIndex))
+    logger.info(s"User added: ${username}")
+  }
+
+  private def removeUser(userDataDir: File) = if (userDataDir.isDirectory) {
+    val username = userDataDir.getName
+    close(users.remove(username))
+    logger.info(s"User removed: ${username}")
+  }
+
   def index(username: String) : Option[DocIndex] =
     users.get(username).map { case (m, i) => i }
 
   def start() = {
-    logger.info("Starting UsersMonitor")
+    logger.info("Starting")
     thread.start()
   }
 
   def close() = {
-    logger.info("Stopping UsersMonitor")
+    logger.info("Stopping")
     watcher.close()
     thread.interrupt()
     close(users.values)
