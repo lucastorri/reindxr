@@ -6,6 +6,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import scala.collection.JavaConversions._
 import java.io.File
 import com.typesafe.scalalogging.slf4j.Logging
+import java.nio.file.FileVisitResult.CONTINUE
 
 
 case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoCloseable with Logging {
@@ -20,12 +21,12 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
       Files.walkFileTree(path, new SimpleFileVisitor[Path] {
         override def preVisitDirectory(dir: Path, attributes: BasicFileAttributes) = {
           w(dir)
-          FileVisitResult.CONTINUE
+          CONTINUE
         }
-        override def visitFile(file: Path, attributes: BasicFileAttributes): FileVisitResult = {
+        override def visitFile(file: Path, attributes: BasicFileAttributes) = {
           logger.info(s"File exists [${dir}]: ${file}")
           handler(FileCreated(DataFile(file.toFile)))
-          FileVisitResult.CONTINUE
+          CONTINUE
         }
       })
     }

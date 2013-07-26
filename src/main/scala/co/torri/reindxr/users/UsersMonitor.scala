@@ -6,7 +6,7 @@ import java.nio.file.StandardWatchEventKinds._
 import co.torri.reindxr.filemon._
 import scala.collection.JavaConversions._
 import scala.collection.mutable
-import co.torri.reindxr.index.{Doc, DocIndex}
+import co.torri.reindxr.index.{DocIndexes, Doc, DocIndex}
 import java.io.File
 import co.torri.reindxr.filemon.FileModified
 import co.torri.reindxr.filemon.FileDeleted
@@ -14,7 +14,7 @@ import co.torri.reindxr.filemon.FileCreated
 import com.typesafe.scalalogging.slf4j.Logging
 
 
-case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable with Logging {
+case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable with Logging with DocIndexes {
 
   private type User = (FileMonitor, DocIndex)
 

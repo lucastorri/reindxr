@@ -257,3 +257,7 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
     def toPair = (lang, this)
   }
 }
+
+trait DocIndexes {
+  def index(username: String) : Option[DocIndex]
+}

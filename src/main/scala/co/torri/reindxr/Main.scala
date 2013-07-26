@@ -18,7 +18,7 @@ object Main extends Logging {
     logger.info("Creating monitor")
     val monitor = UsersMonitor(dataDir, indexDir)
     logger.info("Creating server")
-    val server = HttpServer(null, serverPort) //TODO pass indexes
+    val server = HttpServer(monitor, serverPort)
 
     logger.info("Adding shutdown hook")
     Runtime.getRuntime.addShutdownHook(new Thread {
@@ -29,8 +29,8 @@ object Main extends Logging {
     })
 
     logger.info("Starting components")
-    server.start
     monitor.start
+    server.start
   }
 
 }
