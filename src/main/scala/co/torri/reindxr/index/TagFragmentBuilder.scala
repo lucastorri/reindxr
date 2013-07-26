@@ -11,6 +11,8 @@ import scala.collection.JavaConversions._
 case class TagFragmentBuilder(docs: Docs, snippetsOnly: Boolean, preTag: Int => String, postTag: Int => String) extends SimpleFragmentsBuilder(Array(preTag(0)), Array(postTag(0))) {
 	
 	private val maxFragmentsPerFile = 3
+
+  val tagsSize = preTag(0).size + postTag(0).size
 		
 	override def createFragments(reader: IndexReader, docId: Int, fieldName: String, fieldFragList: FieldFragList, maxNumFragments: Int) : Array[String] = {
 		
@@ -25,7 +27,7 @@ case class TagFragmentBuilder(docs: Docs, snippetsOnly: Boolean, preTag: Int => 
       .take(maxFragmentsPerFile)
       .map { case (line, terms) =>
 
-        val snippetSize = line.size + terms.size * (preTag(0).size + postTag(0).size)
+        val snippetSize = line.size + (terms.size * tagsSize)
         val buf = new JavaStringBuilder(snippetSize)
 
         val lastAppended = terms
