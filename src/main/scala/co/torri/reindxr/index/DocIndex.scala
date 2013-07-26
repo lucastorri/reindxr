@@ -26,8 +26,8 @@ object DocIndex {
   private val preTag = (i: Int) => s"<span class=\"highlight${i}\">"
   private val postTag = (i: Int) => "</span>"
   
-  def apply(indexFolder: File, basepath: File) : DocIndex =
-    DocIndex(DocIndexConfig(indexFolder, basepath, preTag, postTag, DocFields.identifierField, DocFields.contentField))
+  def apply(indexDir: File, dataDir: File) : DocIndex =
+    DocIndex(DocIndexConfig(indexDir, dataDir, preTag, postTag, DocFields.identifierField, DocFields.contentField))
 
 }
 case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimit: Int = 3, maxNumOfFragment: Int = 1000) {
@@ -141,7 +141,7 @@ trait IndexAdapter {
 
 case class SearchResult(score: Float, q: Query, reader: IndexReader, document: Document, docId: Int)
 
-case class DocIndexConfig(indexDir: File, sourceDir: File, preTag: Int => String, postTag: Int => String, idField: String, contentField: String) {
+case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, postTag: Int => String, idField: String, contentField: String) {
 
   val version = LUCENE_43
 
@@ -181,7 +181,7 @@ case class DocIndexConfig(indexDir: File, sourceDir: File, preTag: Int => String
     new DefaultIndexAdapter
 
   lazy val docFactory =
-    Doc.docs(sourceDir)
+    Doc.docs(dataDir)
 
   def close =
     analyzers.foreach(_.close)
