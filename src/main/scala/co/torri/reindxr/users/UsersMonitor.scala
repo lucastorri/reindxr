@@ -11,17 +11,16 @@ import java.io.File
 import co.torri.reindxr.filemon.FileModified
 import co.torri.reindxr.filemon.FileDeleted
 import co.torri.reindxr.filemon.FileCreated
-import grizzled.slf4j.Logging
+import com.typesafe.scalalogging.slf4j.Logging
 
 
-case class UsersMonitor(dataDir: Path, indexDir: Path) extends Logging {
+case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable with Logging {
 
   private type User = (FileMonitor, DocIndex)
+
+  private var started = false
   private val users = mutable.Map[String, User]()
   private val watcher = dataDir.getFileSystem.newWatchService()
-
-  dataDir.toFile.listFiles.foreach(addUser)
-  dataDir.register(watcher, ENTRY_CREATE, ENTRY_DELETE, OVERFLOW)
 
   private val thread = new Thread {
 
@@ -51,28 +50,34 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends Logging {
 
   }
 
-  private def addUser(userDataDir: File) = if (userDataDir.isDirectory) {
+  private def addUser(userDataDir: File) : Unit = if (userDataDir.isDirectory) {
     val username = userDataDir.getName
+    logger.info(s"Adding user: ${username}")
     val userIndexDir = new File(indexDir.toFile, username)
     userIndexDir.mkdir()
     val userIndex = DocIndex(userIndexDir, userDataDir)
     val userMonitor = FileMonitor(userDataDir, handler(userIndex, userDataDir))
     users += (username ->(userMonitor.start, userIndex))
-    logger.info(s"User added: ${username}")
   }
 
-  private def removeUser(userDataDir: File) = if (userDataDir.isDirectory) {
+  private def removeUser(userDataDir: File) : Unit = if (userDataDir.isDirectory) {
     val username = userDataDir.getName
+    logger.info(s"Removing user: ${username}")
     close(users.remove(username))
-    logger.info(s"User removed: ${username}")
   }
 
   def index(username: String) : Option[DocIndex] =
     users.get(username).map { case (m, i) => i }
 
   def start() = {
-    logger.info("Starting")
-    thread.start()
+    if (!started) synchronized {
+      logger.info("Starting")
+      dataDir.toFile.listFiles.foreach(addUser)
+      dataDir.register(watcher, ENTRY_CREATE, ENTRY_DELETE, OVERFLOW)
+      thread.start()
+      started = true
+    }
+    this
   }
 
   def close() = {
@@ -82,7 +87,7 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends Logging {
     close(users.values)
   }
 
-  private def close(users: Iterable[User]) =
+  private def close(users: Iterable[User]) : Unit =
     users.foreach { case (m, i) =>
       m.close
       i.close

@@ -3,13 +3,11 @@ package co.torri.reindxr
 import java.io.File
 
 import co.torri.reindxr.http._
-import grizzled.slf4j.Logger
 import users.UsersMonitor
+import com.typesafe.scalalogging.slf4j.Logging
 
 
-object Main {
-
-  private def logger = Logger("reindxr")
+object Main extends Logging {
 
   def main(args: Array[String]) : Unit = {
 

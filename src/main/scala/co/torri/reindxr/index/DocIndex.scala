@@ -16,9 +16,9 @@ import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.store.FSDirectory.open
 import org.apache.lucene.store.Directory
 import org.apache.lucene.util.Version.LUCENE_43
-import grizzled.slf4j.Logger
 import org.apache.lucene.search.Query
 import scala.collection.parallel.ParSeq
+import com.typesafe.scalalogging.slf4j.Logging
 
 
 object DocIndex {
@@ -30,10 +30,9 @@ object DocIndex {
     DocIndex(DocIndexConfig(indexDir, dataDir, preTag, postTag, DocFields.identifierField, DocFields.contentField))
 
 }
-case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimit: Int = 3, maxNumOfFragment: Int = 1000) {
+case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimit: Int = 3, maxNumOfFragment: Int = 1000) extends Logging {
 
   import DocFields._
-  private val logger = Logger[DocIndex]
   private val docFactory = config.docFactory
   private val snippetHighlighter = config.highlighter(true)
   private val fullDocHighlighter = config.highlighter(false)
@@ -186,9 +185,7 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
   def close =
     analyzers.foreach(_.close)
 
-  class DefaultIndexAdapter extends IndexAdapter {
-
-    private val logger = Logger[DefaultIndexAdapter]
+  class DefaultIndexAdapter extends IndexAdapter with Logging {
 
     def insert(doc: Doc) : Unit = {
       val w = languages(doc.language).writer
