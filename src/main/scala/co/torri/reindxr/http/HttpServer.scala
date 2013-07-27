@@ -40,7 +40,7 @@ case class HttpServer(indexes: DocIndexes, port: Int) extends Logging {
 	}
 
   private val userNotFound =
-    Unauthorized ~> Json("error" -> "user.notFound")
+    Unauthorized ~> Json("error" -> "user not found")
 
   private def json(username: String)(f: DocIndex => ResponseFunction[HttpResponse]) : ResponseFunction[HttpResponse] =
     try indexes.index(username).map(f).getOrElse(userNotFound)
