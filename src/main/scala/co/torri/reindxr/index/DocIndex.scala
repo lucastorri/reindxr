@@ -15,7 +15,7 @@ import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.store.FSDirectory.open
 import org.apache.lucene.store.Directory
-import org.apache.lucene.util.Version.LUCENE_43
+import org.apache.lucene.util.Version.LUCENE_44
 import org.apache.lucene.search.Query
 import scala.collection.parallel.ParSeq
 import com.typesafe.scalalogging.slf4j.Logging
@@ -142,7 +142,7 @@ case class SearchResult(score: Float, q: Query, reader: IndexReader, document: D
 
 case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, postTag: Int => String, idField: String, contentField: String) {
 
-  val version = LUCENE_43
+  val version = LUCENE_44
 
   private val idQueryParser =
     queryParser(idField, new KeywordAnalyzer)
