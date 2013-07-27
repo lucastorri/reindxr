@@ -25,7 +25,7 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
         }
         override def visitFile(file: Path, attributes: BasicFileAttributes) = {
           logger.info(s"File exists [${dir}]: ${file}")
-          handler(FileCreated(DataFile(file.toFile)))
+          handle(FileCreated(DataFile(file.toFile)))
           CONTINUE
         }
       })
@@ -48,17 +48,17 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
                 watch(path)
                 if (isFile) {
                   logger.info(s"File created [${dir}]: ${file}")
-                  handler(FileCreated(file))
+                  handle(FileCreated(file))
                 }
               case ENTRY_MODIFY =>
                 if (isFile) {
                   logger.info(s"File modified [${dir}]: ${file}")
-                  handler(FileModified(file))
+                  handle(FileModified(file))
                 }
               case ENTRY_DELETE =>
                 if (isFile) {
                   logger.info(s"File deleted [${dir}]: ${file}")
-                  handler(FileDeleted(file))
+                  handle(FileDeleted(file))
                 }
               case OVERFLOW =>
                 logger.error(s"Overflow [${dir}}]: ${file}")
@@ -91,6 +91,12 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
     watcher.close()
     thread.interrupt()
   }
+
+  private def handle(e: FileEvent) =
+    try handler(e)
+    catch {
+      case e: Exception => logger.error("Error", e)
+    }
 
 }
 object FileMonitor {

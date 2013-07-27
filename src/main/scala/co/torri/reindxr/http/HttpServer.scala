@@ -9,6 +9,7 @@ import org.jboss.netty.handler.codec.http.HttpResponse
 import org.json4s._
 import org.json4s.native.Serialization
 import org.json4s.native.Serialization.write
+import com.typesafe.scalalogging.slf4j.Logging
 
 trait Response
 case class MatchedResponse(id: String, matches: Seq[String], metadata: Map[String, String]) extends Response
@@ -17,7 +18,7 @@ object Response {
 		MatchedResponse(d.doc.id, d.matches, d.doc.metadata)
 }
 
-case class HttpServer(indexes: DocIndexes, port: Int) {
+case class HttpServer(indexes: DocIndexes, port: Int) extends Logging {
   
 	import Decode.{utf8 => dec}
   
@@ -39,10 +40,15 @@ case class HttpServer(indexes: DocIndexes, port: Int) {
 	}
 
   private val userNotFound =
-    NotFound ~> Json("error" -> "user.notFound")
+    Unauthorized ~> Json("error" -> "user.notFound")
 
   private def json(username: String)(f: DocIndex => ResponseFunction[HttpResponse]) : ResponseFunction[HttpResponse] =
-    indexes.index(username).map(f).getOrElse(userNotFound)
+    try indexes.index(username).map(f).getOrElse(userNotFound)
+    catch {
+      case e: Exception =>
+        logger.error("Error", e)
+        InternalServerError ~> Json("error" -> e.getMessage)
+    }
 	
   private val server =
     Http(port).chunked(1048576).plan(handler)
@@ -70,7 +76,7 @@ object Json {
     create(s.map(Response(_)))
 
   def apply(error: (String, String)) =
-    JsonContent ~> ResponseString(write(error))
+    JsonContent ~> ResponseString(write(Map(error)))
 }
 
 object Decode {
