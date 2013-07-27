@@ -39,3 +39,6 @@ publishTo <<= version { (v: String) =>
 publishArtifact in Test := false
 
 pomIncludeRepository := { _ => false }
+
+net.virtualvoid.sbt.graph.Plugin.graphSettings
+
