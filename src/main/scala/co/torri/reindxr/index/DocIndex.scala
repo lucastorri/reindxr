@@ -43,7 +43,7 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
       if (newer) {
         index.delete(doc)
         index.insert(doc)
-        logger.info(s"inserting ${doc.id} [${doc.language}]")
+        logger.debug(s"inserting ${doc.id} [${doc.language}]")
       }
     }
     .getOrHandleException { e =>
@@ -53,7 +53,7 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
   def remove(doc: Doc) : Unit =
     withIndex { index =>
       index.delete(doc)
-      logger.info(s"removing ${doc.id}")
+      logger.debug(s"removing ${doc.id}")
     }
     .getOrHandleException { e =>
       logger.error(s"Error when deleting ${doc.id}", e)

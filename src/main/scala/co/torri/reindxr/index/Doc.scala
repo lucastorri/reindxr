@@ -8,7 +8,7 @@ import scala.collection.JavaConversions._
 import org.apache.lucene.document.Field.Index
 import org.apache.lucene.document.Field.Store
 import org.apache.lucene.document.Field.TermVector
-import org.apache.lucene.document.{StringField, Document, Field}
+import org.apache.lucene.document.{TextField, StringField, Document, Field}
 import org.apache.tika.detect.DefaultDetector
 import org.apache.tika.metadata.{Metadata => MD}
 import org.apache.tika.parser.AutoDetectParser
@@ -118,13 +118,13 @@ trait DocConverter extends DocFields { self : Doc =>
   def document = {
     val d = new Document
     metadata.foreach { case (field, value) =>
-      d.add(new Field(field, value, Store.YES, Index.ANALYZED))
+      d.add(new TextField(field, value, Store.YES))
     }
     d.add(new StringField(identifierField, self.id, Store.YES))
     d.add(new StringField(timestampField, self.timestamp.toString, Store.YES))
     d.add(new StringField(metadataTimestampField, self.metadataTimestamp.toString, Store.YES))
     d.add(new StringField(languageField, self.language, Store.YES))
-    d.add(new Field(contentField, self.contents, Store.NO, Index.ANALYZED, TermVector.WITH_POSITIONS_OFFSETS))
+    d.add(new TextWithOffsetsField(contentField, self.contents))
     d
   }
 
