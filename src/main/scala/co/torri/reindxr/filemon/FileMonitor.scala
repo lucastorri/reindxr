@@ -24,7 +24,7 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
           CONTINUE
         }
         override def visitFile(file: Path, attributes: BasicFileAttributes) = {
-          logger.info(s"File exists [${dir}]: ${file}")
+          logger.debug(s"File exists [${dir}]: ${file}")
           handle(FileCreated(DataFile(file.toFile)))
           CONTINUE
         }
@@ -47,17 +47,17 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
               case ENTRY_CREATE =>
                 watch(path)
                 if (isFile) {
-                  logger.info(s"File created [${dir}]: ${file}")
+                  logger.debug(s"File created [${dir}]: ${file}")
                   handle(FileCreated(file))
                 }
               case ENTRY_MODIFY =>
                 if (isFile) {
-                  logger.info(s"File modified [${dir}]: ${file}")
+                  logger.debug(s"File modified [${dir}]: ${file}")
                   handle(FileModified(file))
                 }
               case ENTRY_DELETE =>
                 if (isFile) {
-                  logger.info(s"File deleted [${dir}]: ${file}")
+                  logger.debug(s"File deleted [${dir}]: ${file}")
                   handle(FileDeleted(file))
                 }
               case OVERFLOW =>
