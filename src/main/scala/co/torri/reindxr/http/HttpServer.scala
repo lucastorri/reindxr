@@ -36,7 +36,7 @@ case class HttpServer(indexes: DocIndexes, port: Int) extends Logging {
       req.respond(json(user)(index => Json(index.highlight(id, query))))
 		  	
 		case req =>
-      req.respond(NotFound ~> ResponseString("not found"))
+      req.respond(NotFound ~> Json("error" -> "not found"))
 	}
 
   private val userNotFound =
