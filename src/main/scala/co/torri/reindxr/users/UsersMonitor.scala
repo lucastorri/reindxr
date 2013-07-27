@@ -102,6 +102,6 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable wit
 object UsersMonitor {
 
   def apply(dataDir: File, indexDir: File): UsersMonitor =
-    apply(dataDir.toPath, indexDir.toPath)
+    apply(Paths.get(dataDir.toURI), Paths.get(indexDir.toURI))
 
 }
