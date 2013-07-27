@@ -59,41 +59,41 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
       logger.error(s"Error when deleting ${doc.id}", e)
     }
 
-    def search(query: String) : Seq[DocMatch] =
-      withIndex { index =>
-        index.search(query, searchLimit).map{ r =>
-          DocMatch(docFactory(r.document))
-        }.seq
-      }
-      .getOrHandleException { e =>
-        logger.error(s"Error when searching for ${query}", e)
-        Seq()
-      }
-        
-    def snippets(query: String) : Seq[DocMatch] = 
-      withIndex { index =>
-        index.search(query, searchLimit).map(snippets(_)).seq
-      }
-      .getOrHandleException { e =>
-        logger.error(s"Error when searching for ${query}", e)
-        Seq()
-      }
-
-    def snippets(id: String, query: String) : DocMatch =
-      withIndex { index =>
-        index.searchInId(id, query).map(snippets(_)).getOrElse(DocMatch(NullDoc(id)))
-      }
-      .getOrHandleException { e =>
-        logger.error(s"Error when searching for ${query}", e)
-        DocMatch(NullDoc(id))
-      }
-        
-    private def snippets(r: SearchResult) = {
-      val fq = snippetHighlighter.getFieldQuery(r.q)
-      val fragments = snippetHighlighter
-        .getBestFragments(fq, r.reader, r.docId, contentField, maxNumOfFragment, highlightLimit)
-		  DocMatch(docFactory(r.document), fragments)
+  def search(query: String) : Seq[DocMatch] =
+    withIndex { index =>
+      index.search(query, searchLimit).map{ r =>
+        DocMatch(docFactory(r.document))
+      }.seq
     }
+    .getOrHandleException { e =>
+      logger.error(s"Error when searching for ${query}", e)
+      Seq()
+    }
+
+  def snippets(query: String) : Seq[DocMatch] =
+    withIndex { index =>
+      index.search(query, searchLimit).map(snippets(_)).seq
+    }
+    .getOrHandleException { e =>
+      logger.error(s"Error when searching for ${query}", e)
+      Seq()
+    }
+
+  def snippets(id: String, query: String) : DocMatch =
+    withIndex { index =>
+      index.searchInId(id, query).map(snippets(_)).getOrElse(DocMatch(NullDoc(id)))
+    }
+    .getOrHandleException { e =>
+      logger.error(s"Error when searching for ${query}", e)
+      DocMatch(NullDoc(id))
+    }
+
+  private def snippets(r: SearchResult) = {
+    val fq = snippetHighlighter.getFieldQuery(r.q)
+    val fragments = snippetHighlighter
+      .getBestFragments(fq, r.reader, r.docId, contentField, maxNumOfFragment, highlightLimit)
+    DocMatch(docFactory(r.document), fragments)
+  }
         
   def highlight(id: String, query: String) : DocMatch =
     withIndex { index =>

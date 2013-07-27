@@ -102,6 +102,6 @@ case class FileMonitor(dir: Path, handler: FileEvent => Unit) extends AutoClosea
 object FileMonitor {
 
   def apply(dir: File, handler: FileEvent => Unit): FileMonitor =
-    apply(Paths.get(dir.toURI), handler)
+    apply(dir.toPath, handler)
 
 }
