@@ -14,7 +14,6 @@ libraryDependencies ++= Seq(
   "org.apache.lucene" % "lucene-analyzers-common" % "4.3.1",
   "org.apache.lucene" % "lucene-queryparser" % "4.3.1",
   "org.apache.tika" % "tika-parsers" % "1.4",
-  "org.streum" %% "configrity-core" % "1.0.0",
   "net.databinder" %% "unfiltered-netty-server" % "0.6.8",
   "com.typesafe" %% "scalalogging-slf4j" % "1.0.1",
   "org.slf4j" % "slf4j-jdk14" % "1.7.5",
