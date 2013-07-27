@@ -1,8 +1,7 @@
 package co.torri.reindxr.http
 
-import co.torri.reindxr.index.{DocIndexes, DocIndex, DocMatch}
+import co.torri.reindxr.index.{DocIndexes, DocIndex}
 import unfiltered.netty._
-import unfiltered.netty.async.Plan
 import unfiltered.request._
 import unfiltered.response._
 import org.jboss.netty.handler.codec.http.HttpResponse
@@ -10,13 +9,9 @@ import org.json4s._
 import org.json4s.native.Serialization
 import org.json4s.native.Serialization.write
 import com.typesafe.scalalogging.slf4j.Logging
-import org.jboss.netty.channel.ChannelHandlerContext
 import scala.Some
 import co.torri.reindxr.index.DocMatch
-import unfiltered.request.Charset
 import unfiltered.Async
-import unfiltered.response.Charset
-import co.torri.reindxr.http.MatchedResponse
 import unfiltered.response.ResponseString
 
 trait Response
