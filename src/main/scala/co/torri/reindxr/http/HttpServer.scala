@@ -1,7 +1,8 @@
 package co.torri.reindxr.http
 
 import co.torri.reindxr.index.{DocIndexes, DocIndex, DocMatch}
-import unfiltered.netty.{ExceptionHandler, ServerErrorResponse, Http, async}
+import unfiltered.netty._
+import unfiltered.netty.async.Plan
 import unfiltered.request._
 import unfiltered.response._
 import org.jboss.netty.handler.codec.http.HttpResponse
@@ -10,6 +11,13 @@ import org.json4s.native.Serialization
 import org.json4s.native.Serialization.write
 import com.typesafe.scalalogging.slf4j.Logging
 import org.jboss.netty.channel.ChannelHandlerContext
+import scala.Some
+import co.torri.reindxr.index.DocMatch
+import unfiltered.request.Charset
+import unfiltered.Async
+import unfiltered.response.Charset
+import co.torri.reindxr.http.MatchedResponse
+import unfiltered.response.ResponseString
 
 trait Response
 case class MatchedResponse(id: String, matches: Seq[String], metadata: Map[String, String]) extends Response
@@ -21,20 +29,29 @@ object Response {
 case class HttpServer(indexes: DocIndexes, port: Int) extends Logging {
   
 	import Decode.{utf8 => dec}
+  private type Req = HttpRequest[ReceivedMessage] with Async.Responder[HttpResponse]
   
 	object handler extends async.Plan with ServerErrorResponse {
     def intent = {
       case req @ GET(Path(Seg(user :: "search" :: dec(query) :: Nil))) =>
-        req.respond(json(user)(index => Json(index.search(query))))
+        json(req, user) {
+          index => Json(index.search(query))
+        }
 
       case req @ GET(Path(Seg(user :: "snippets" :: dec(query) :: Nil))) =>
-        req.respond(json(user)(index => Json(index.snippets(query))))
+        json(req, user) {
+          index => Json(index.snippets(query))
+        }
 
       case req @ GET(Path(Seg(user :: "snippets" :: dec(id) :: dec(query) :: Nil))) =>
-        req.respond(json(user)(index => Json(index.snippets(id, query))))
+        json(req, user) {
+          index => Json(index.snippets(id, query))
+        }
 
       case req @ GET(Path(Seg(user :: "hl" :: dec(id) :: dec(query) :: Nil))) =>
-        req.respond(json(user)(index => Json(index.highlight(id, query))))
+        json(req, user) {
+          index => Json(index.highlight(id, query))
+        }
 
       case req =>
         req.respond(NotFound ~> Json("error" -> "not found"))
@@ -44,9 +61,10 @@ case class HttpServer(indexes: DocIndexes, port: Int) extends Logging {
   private val userNotFound =
     Unauthorized ~> Json("error" -> "user not found")
 
-  private def json(username: String)(f: DocIndex => ResponseFunction[HttpResponse]) : ResponseFunction[HttpResponse] =
-    try indexes.index(username).map(f).getOrElse(userNotFound)
-    catch {
+  private def json(req: Req, username: String)(f: DocIndex => ResponseFunction[HttpResponse]) : Unit =
+    try req.respond {
+      indexes.index(username).map(f).getOrElse(userNotFound)
+    } catch {
       case e: Exception =>
         logger.error("Error", e)
         InternalServerError ~> Json("error" -> e.getMessage)
