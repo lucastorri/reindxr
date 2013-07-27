@@ -6,7 +6,7 @@ import org.apache.lucene.document.{FieldType, Field}
 class TextWithOffsetsField(name: String, text: String) extends Field(name, text, TextWithOffsetsField.ft)
 object TextWithOffsetsField {
 
-  private[TextWithOffsetsField] val ft = {
+  private[TextWithOffsetsField] def ft = {
     val ft = new FieldType()
     ft.setStoreTermVectors(true)
     ft.setStoreTermVectorPositions(true)
