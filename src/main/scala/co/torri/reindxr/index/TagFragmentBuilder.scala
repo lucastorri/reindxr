@@ -12,7 +12,7 @@ case class TagFragmentBuilder(docs: Docs, snippetsOnly: Boolean, preTag: Int => 
 
   private val maxFragmentsPerFile = 3
 
-  val tagsSize = preTag(0).size + postTag(0).size
+  val tagsSize: Int = preTag(0).length + postTag(0).length
 
   override def createFragments(reader: IndexReader, docId: Int, fieldName: String, fieldFragList: FieldFragList, maxNumFragments: Int): Array[String] = {
 
@@ -23,7 +23,7 @@ case class TagFragmentBuilder(docs: Docs, snippetsOnly: Boolean, preTag: Int => 
 
     val fragments = text.terms.groupBy(_.line)
       .toArray
-      .sortBy { case (line, terms) => -terms.size }
+      .sortBy { case (_, terms) => -terms.size }
       .take(maxFragmentsPerFile)
       .map { case (line, terms) =>
 
@@ -45,30 +45,33 @@ case class TagFragmentBuilder(docs: Docs, snippetsOnly: Boolean, preTag: Int => 
         buf.append(source, lastAppended, line.end).toString
       }
 
-    if (snippetsOnly && fragments.size < maxFragmentsPerFile) {
+    if (snippetsOnly && fragments.length < maxFragmentsPerFile) {
       val b = fragments.toBuffer
       source.linesWithSeparators.toList.takeWhile { l =>
         if (!l.trim.isEmpty && !b.contains(l)) {
           b += l
         }
-        (b.size < maxFragmentsPerFile)
+        b.size < maxFragmentsPerFile
       }
       b.toArray
     } else if (!snippetsOnly && fragments.isEmpty) {
       Array(source)
     } else {
       fragments
-      }
-      .toArray
+    }
   }
 
   class MatchedText(val source: String, fieldFragList: FieldFragList) {
 
-    val terms = for {
-      fragInfo <- fieldFragList.getFragInfos.asScala
-      subInfo <- fragInfo.getSubInfos.asScala
-      termOffset <- subInfo.getTermsOffsets.asScala
-    } yield MatchedTerm(this, termOffset.getStartOffset, termOffset.getEndOffset, subInfo.getSeqnum)
+    val terms: Seq[MatchedTerm] = {
+      val innerTerms = for {
+        fragInfo <- fieldFragList.getFragInfos.asScala
+        subInfo <- fragInfo.getSubInfos.asScala
+        termOffset <- subInfo.getTermsOffsets.asScala
+      } yield MatchedTerm(this, termOffset.getStartOffset, termOffset.getEndOffset, subInfo.getSeqnum)
+
+      innerTerms.toSeq
+    }
 
   }
 
@@ -76,22 +79,22 @@ case class TagFragmentBuilder(docs: Docs, snippetsOnly: Boolean, preTag: Int => 
 
     val stop = '\n'
 
-    val line = {
+    val line: Line = {
       val startFragPosition =
         if (snippetsOnly) Some(text.source.lastIndexOf(stop, start)).filter(_ >= 0).map(_ + 1).getOrElse(0)
         else 0
       val endFragPosition =
-        if (snippetsOnly) Some(text.source.indexOf(stop, end)).filter(_ >= 0).getOrElse(text.source.size)
-        else text.source.size
+        if (snippetsOnly) Some(text.source.indexOf(stop, end)).filter(_ >= 0).getOrElse(text.source.length)
+        else text.source.length
       Line(text, startFragPosition, endFragPosition)
     }
   }
 
   case class Line(text: MatchedText, start: Int, end: Int) {
 
-    lazy val source = text.source.substring(start, end)
+    lazy val source: String = text.source.substring(start, end)
 
-    def size = end - start
+    def size: Int = end - start
   }
 
 }

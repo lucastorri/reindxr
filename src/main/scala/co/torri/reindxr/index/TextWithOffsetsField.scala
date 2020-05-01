@@ -7,7 +7,7 @@ class TextWithOffsetsField(name: String, text: String) extends Field(name, text,
 
 object TextWithOffsetsField {
 
-  private[TextWithOffsetsField] def ft = {
+  private def ft: FieldType = {
     val ft = new FieldType()
     ft.setStoreTermVectors(true)
     ft.setStoreTermVectorPositions(true)

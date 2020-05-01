@@ -23,7 +23,7 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable wit
 
   private val thread = new Thread {
 
-    override def run = {
+    override def run(): Unit = {
       try {
         while (!Thread.currentThread().isInterrupted) {
           val key = watcher.take
@@ -34,7 +34,7 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable wit
             e.kind match {
               case ENTRY_CREATE => addUser(file)
               case ENTRY_DELETE => removeUser(file)
-              case OVERFLOW => logger.error(s"Overflow on ${path}")
+              case OVERFLOW => logger.error(s"Overflow on $path")
             }
           }
           key.reset
@@ -51,24 +51,24 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable wit
 
   private def addUser(userDataDir: File): Unit = if (userDataDir.isDirectory) {
     val username = userDataDir.getName
-    logger.info(s"Adding user: ${username}")
+    logger.info(s"Adding user: $username")
     val userIndexDir = new File(indexDir.toFile, username)
     userIndexDir.mkdir()
     val userIndex = DocIndex(userIndexDir, userDataDir)
     val userMonitor = FileMonitor(userDataDir, handler(userIndex, userDataDir))
-    users += (username -> (userMonitor.start, userIndex))
+    users += (username -> (userMonitor.start(), userIndex))
   }
 
   private def removeUser(userDataDir: File): Unit = if (userDataDir.isDirectory) {
     val username = userDataDir.getName
-    logger.info(s"Removing user: ${username}")
+    logger.info(s"Removing user: $username")
     close(users.remove(username))
   }
 
   def index(username: String): Option[DocIndex] =
-    users.get(username).map { case (m, i) => i }
+    users.get(username).map { case (_, i) => i }
 
-  def start() = {
+  def start(): UsersMonitor = {
     if (!started) synchronized {
       logger.info("Starting")
       dataDir.toFile.listFiles.foreach(addUser)
@@ -79,7 +79,7 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable wit
     this
   }
 
-  def close() = {
+  def close(): Unit = {
     logger.info("Stopping")
     watcher.close()
     thread.interrupt()
@@ -88,8 +88,8 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable wit
 
   private def close(users: Iterable[User]): Unit =
     users.foreach { case (m, i) =>
-      m.close
-      i.close
+      m.close()
+      i.close()
     }
 
   private def handler(index: DocIndex, dataDir: File): FileEvent => Unit = {

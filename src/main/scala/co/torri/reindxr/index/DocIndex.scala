@@ -24,8 +24,8 @@ import scala.collection.parallel.ParSeq
 
 object DocIndex {
 
-  private val preTag = (i: Int) => s"""<span class="highlight$i">"""
-  private val postTag = (i: Int) => "</span>"
+  private val preTag = (i: Int) => s"""<span class="highlight-$i">"""
+  private val postTag = (_: Int) => "</span>"
 
   def apply(indexDir: File, dataDir: File): DocIndex =
     DocIndex(DocIndexConfig(indexDir, dataDir, preTag, postTag, DocFields.identifierField, DocFields.contentField))
@@ -69,7 +69,7 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
       }.seq.toSeq
     }
       .getOrHandleException { e =>
-        logger.error(s"Error when searching for ${query}", e)
+        logger.error(s"Error when searching for $query", e)
         Seq.empty
       }
 
@@ -78,7 +78,7 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
       index.search(query, searchLimit).map(snippets).seq.toSeq
     }
       .getOrHandleException { e =>
-        logger.error(s"Error when searching for ${query}", e)
+        logger.error(s"Error when searching for $query", e)
         Seq.empty
       }
 
@@ -87,11 +87,11 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
       index.searchInId(id, query).map(snippets).getOrElse(DocMatch(NullDoc(id)))
     }
       .getOrHandleException { e =>
-        logger.error(s"Error when searching for ${query}", e)
+        logger.error(s"Error when searching for $query", e)
         DocMatch(NullDoc(id))
       }
 
-  private def snippets(r: SearchResult) = {
+  private def snippets(r: SearchResult): DocMatch = {
     val fq = snippetHighlighter.getFieldQuery(r.q)
     val fragments = snippetHighlighter
       .getBestFragments(fq, r.reader, r.docId, contentField, maxNumOfFragment, highlightLimit)
@@ -108,7 +108,7 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
       }.getOrElse(DocMatch(NullDoc(id)))
     }
       .getOrHandleException { e =>
-        logger.error(s"Error when highlighting ${id} with query ${query}", e)
+        logger.error(s"Error when highlighting $id with query $query", e)
         DocMatch(NullDoc(id))
       }
 
@@ -117,18 +117,14 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
   }
 
   private def withIndex[R](success: IndexAdapter => R): IndexRet[R] = try {
-    new IndexRet[R] {
-      def getOrHandleException(error: Exception => R): R = success(config.indexAdapter)
-    }
+    (_: Exception => R) => success(config.indexAdapter)
   } catch {
     case e: Exception =>
-      new IndexRet[R] {
-        def getOrHandleException(error: (Exception) => R): R = error(e)
-      }
+      (error: Exception => R) => error(e)
   }
 
-  def close =
-    config.close
+  def close(): Unit =
+    config.close()
 
 }
 
@@ -143,19 +139,19 @@ trait IndexAdapter {
 
   def delete(doc: Doc): Unit
 
-  def close: Unit
+  def close(): Unit
 }
 
 case class SearchResult(score: Float, q: Query, reader: IndexReader, document: Document, docId: Int)
 
-case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, postTag: Int => String, idField: String, contentField: String) {
+case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, postTag: Int => String, idField: String, contentField: String) extends LazyLogging {
 
   val version = LUCENE_44
 
   private val idQueryParser =
     queryParser(idField, new KeywordAnalyzer)
 
-  private def fq(field: String, q: String) =
+  private def fq(field: String, q: String): String =
     "%s:(%s)".format(field, q)
 
   private lazy val writers: ParSeq[IndexWriter] =
@@ -164,7 +160,7 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
   private lazy val analyzers: ParSeq[LanguageConfig] =
     languages.values.toList.par
 
-  val languages = {
+  val languages: Map[String, LanguageConfig] = {
     val default = LanguageConfig("en", new EnglishAnalyzer(version))
     Map(
       default.toPair,
@@ -178,27 +174,27 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
     parser
   }
 
-  def highlighter(snippetsOnly: Boolean) = {
+  def highlighter(snippetsOnly: Boolean): FastVectorHighlighter = {
     val fragListBuilder = new SimpleFragListBuilder
     val fragBuilder = TagFragmentBuilder(docFactory, snippetsOnly, preTag, postTag)
     new FastVectorHighlighter(true, true, fragListBuilder, fragBuilder)
   }
 
-  lazy val indexAdapter =
+  lazy val indexAdapter: DefaultIndexAdapter =
     new DefaultIndexAdapter
 
-  lazy val docFactory =
+  lazy val docFactory: Docs =
     Doc.docs(dataDir)
 
-  def close =
-    analyzers.foreach(_.close)
+  def close(): Unit =
+    analyzers.foreach(_.close())
 
   class DefaultIndexAdapter extends IndexAdapter with LazyLogging {
 
     def insert(doc: Doc): Unit = {
       val w = languages(doc.language).writer
       w.addDocument(doc.document)
-      w.commit
+      w.commit()
     }
 
     def search(query: String, limit: Int): ParSeq[SearchResult] =
@@ -217,7 +213,7 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
       searchInId(id, id).map(r => r.document)
 
     def searchInId(id: String, query: String): Option[SearchResult] = try {
-      val q = idQueryParser.parse(fq(idField, s""" "${id}" """.trim))
+      val q = idQueryParser.parse(fq(idField, s""" "$id" """.trim))
       analyzers.flatMap { a =>
         a.searcher.search(q, 1).scoreDocs.map { d =>
           val doc = a.searcher.doc(d.doc)
@@ -234,12 +230,12 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
     def delete(doc: Doc): Unit =
       writers.foreach(_.deleteDocuments(new Term(idField, doc.id)))
 
-    def close =
-      languages.values.foreach(_.close)
+    def close(): Unit =
+      languages.values.foreach(_.close())
   }
 
   object LanguageConfig {
-    def apply(lang: String, analyzer: Analyzer) = {
+    def apply(lang: String, analyzer: Analyzer): LanguageConfig = {
       val dir = new File(indexDir.getAbsolutePath + | + lang)
       dir.mkdirs
       new LanguageConfig(lang, analyzer, open(dir))
@@ -248,26 +244,27 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
 
   class LanguageConfig(val lang: String, val analyzer: Analyzer, dir: Directory) {
 
-    val writer = {
+    val writer: IndexWriter = {
       val config = new IndexWriterConfig(version, analyzer).setOpenMode(CREATE_OR_APPEND)
       new IndexWriter(dir, config)
     }
 
-    def searcher = new IndexSearcher(DirectoryReader.open(writer, true))
+    def searcher: IndexSearcher = new IndexSearcher(DirectoryReader.open(writer, true))
 
-    lazy val parser = queryParser(contentField, analyzer)
+    lazy val parser: QueryParser = queryParser(contentField, analyzer)
 
-    def indexExists =
+    def indexExists: Boolean =
       DirectoryReader.indexExists(dir)
 
-    def close =
+    def close(): Unit =
       try {
-        writer.close
+        writer.close()
       } catch {
         case e: Exception =>
+          logger.error("Failed to close language config", e)
       }
 
-    def toPair = (lang, this)
+    def toPair: (String, LanguageConfig) = (lang, this)
   }
 
 }

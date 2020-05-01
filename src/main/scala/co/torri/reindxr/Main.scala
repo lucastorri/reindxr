@@ -22,15 +22,15 @@ object Main extends LazyLogging {
 
     logger.info("Adding shutdown hook")
     Runtime.getRuntime.addShutdownHook(new Thread {
-      override def run = {
-        server.stop
-        monitor.close
+      override def run(): Unit = {
+        server.stop()
+        monitor.close()
       }
     })
 
     logger.info("Starting components")
-    monitor.start
-    server.start
+    monitor.start()
+    server.start()
   }
 
 }
