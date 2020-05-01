@@ -1,20 +1,19 @@
 package co.torri.reindxr.users
 
 
-import java.nio.file.{Paths, Path}
-import java.nio.file.StandardWatchEventKinds._
-import co.torri.reindxr.filemon._
-import scala.collection.JavaConversions._
-import scala.collection.mutable
-import co.torri.reindxr.index.{DocIndexes, Doc, DocIndex}
 import java.io.File
-import co.torri.reindxr.filemon.FileModified
-import co.torri.reindxr.filemon.FileDeleted
-import co.torri.reindxr.filemon.FileCreated
-import com.typesafe.scalalogging.slf4j.Logging
+import java.nio.file.StandardWatchEventKinds._
+import java.nio.file.{Path, Paths}
+
+import co.torri.reindxr.filemon.{FileCreated, FileDeleted, FileModified, _}
+import co.torri.reindxr.index.{Doc, DocIndex, DocIndexes}
+import com.typesafe.scalalogging.LazyLogging
+
+import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
 
-case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable with Logging with DocIndexes {
+case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable with LazyLogging with DocIndexes {
 
   private type User = (FileMonitor, DocIndex)
 
@@ -28,7 +27,7 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable wit
       try {
         while (!Thread.currentThread().isInterrupted) {
           val key = watcher.take
-          key.pollEvents.foreach { e =>
+          key.pollEvents.asScala.foreach { e =>
             val relativePath = e.context().asInstanceOf[Path]
             val path = key.watchable().asInstanceOf[Path].resolve(relativePath)
             val file = path.toFile
@@ -50,23 +49,23 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable wit
 
   }
 
-  private def addUser(userDataDir: File) : Unit = if (userDataDir.isDirectory) {
+  private def addUser(userDataDir: File): Unit = if (userDataDir.isDirectory) {
     val username = userDataDir.getName
     logger.info(s"Adding user: ${username}")
     val userIndexDir = new File(indexDir.toFile, username)
     userIndexDir.mkdir()
     val userIndex = DocIndex(userIndexDir, userDataDir)
     val userMonitor = FileMonitor(userDataDir, handler(userIndex, userDataDir))
-    users += (username ->(userMonitor.start, userIndex))
+    users += (username -> (userMonitor.start, userIndex))
   }
 
-  private def removeUser(userDataDir: File) : Unit = if (userDataDir.isDirectory) {
+  private def removeUser(userDataDir: File): Unit = if (userDataDir.isDirectory) {
     val username = userDataDir.getName
     logger.info(s"Removing user: ${username}")
     close(users.remove(username))
   }
 
-  def index(username: String) : Option[DocIndex] =
+  def index(username: String): Option[DocIndex] =
     users.get(username).map { case (m, i) => i }
 
   def start() = {
@@ -87,18 +86,19 @@ case class UsersMonitor(dataDir: Path, indexDir: Path) extends AutoCloseable wit
     close(users.values)
   }
 
-  private def close(users: Iterable[User]) : Unit =
+  private def close(users: Iterable[User]): Unit =
     users.foreach { case (m, i) =>
       m.close
       i.close
     }
 
-  private def handler(index: DocIndex, dataDir: File) : FileEvent => Unit = {
+  private def handler(index: DocIndex, dataDir: File): FileEvent => Unit = {
     case FileCreated(df) => index.insert(Doc(dataDir, df))
     case FileModified(df) => index.insert(Doc(dataDir, df))
     case FileDeleted(df) => index.remove(Doc(dataDir, df))
   }
 }
+
 object UsersMonitor {
 
   def apply(dataDir: File, indexDir: File): UsersMonitor =

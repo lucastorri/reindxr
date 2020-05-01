@@ -1,29 +1,29 @@
 package co.torri.reindxr.index
 
-import org.apache.lucene.index.IndexReader
-import org.apache.lucene.search.vectorhighlight.FieldFragList
-import org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder
 import java.lang.{StringBuilder => JavaStringBuilder}
 
-import scala.collection.JavaConversions._
+import org.apache.lucene.index.IndexReader
+import org.apache.lucene.search.vectorhighlight.{FieldFragList, SimpleFragmentsBuilder}
+
+import scala.jdk.CollectionConverters._
 
 
 case class TagFragmentBuilder(docs: Docs, snippetsOnly: Boolean, preTag: Int => String, postTag: Int => String) extends SimpleFragmentsBuilder(Array(preTag(0)), Array(postTag(0))) {
-	
-	private val maxFragmentsPerFile = 3
+
+  private val maxFragmentsPerFile = 3
 
   val tagsSize = preTag(0).size + postTag(0).size
-		
-	override def createFragments(reader: IndexReader, docId: Int, fieldName: String, fieldFragList: FieldFragList, maxNumFragments: Int) : Array[String] = {
-		
-		val source = docs(reader.document(docId)).contents
-		if (source.isEmpty) return Array[String]()
+
+  override def createFragments(reader: IndexReader, docId: Int, fieldName: String, fieldFragList: FieldFragList, maxNumFragments: Int): Array[String] = {
+
+    val source = docs(reader.document(docId)).contents
+    if (source.isEmpty) return Array[String]()
 
     val text = new MatchedText(source, fieldFragList)
-		
+
     val fragments = text.terms.groupBy(_.line)
       .toArray
-      .sortBy { case (line, terms) => - terms.size }
+      .sortBy { case (line, terms) => -terms.size }
       .take(maxFragmentsPerFile)
       .map { case (line, terms) =>
 
@@ -39,35 +39,35 @@ case class TagFragmentBuilder(docs: Docs, snippetsOnly: Boolean, preTag: Int => 
               .append(source, term.start, term.end)
               .append(postTag(term.number))
 
-          term.end
-        }
+            term.end
+          }
 
         buf.append(source, lastAppended, line.end).toString
       }
-		
-		if (snippetsOnly && fragments.size < maxFragmentsPerFile) {
-			val b = fragments.toBuffer
-			source.linesWithSeparators.toList.takeWhile { l =>
+
+    if (snippetsOnly && fragments.size < maxFragmentsPerFile) {
+      val b = fragments.toBuffer
+      source.linesWithSeparators.toList.takeWhile { l =>
         if (!l.trim.isEmpty && !b.contains(l)) {
           b += l
         }
         (b.size < maxFragmentsPerFile)
-			}
-			b.toArray
-		} else if (!snippetsOnly && fragments.isEmpty) {
-			Array(source)
-		} else {
-			fragments
-		}
-    .toArray
+      }
+      b.toArray
+    } else if (!snippetsOnly && fragments.isEmpty) {
+      Array(source)
+    } else {
+      fragments
+      }
+      .toArray
   }
 
   class MatchedText(val source: String, fieldFragList: FieldFragList) {
 
     val terms = for {
-      fragInfo <- fieldFragList.getFragInfos
-      subInfo <- fragInfo.getSubInfos
-      termOffset <- subInfo.getTermsOffsets
+      fragInfo <- fieldFragList.getFragInfos.asScala
+      subInfo <- fragInfo.getSubInfos.asScala
+      termOffset <- subInfo.getTermsOffsets.asScala
     } yield MatchedTerm(this, termOffset.getStartOffset, termOffset.getEndOffset, subInfo.getSeqnum)
 
   }

@@ -1,92 +1,95 @@
 package co.torri.reindxr.index
 
-import java.io.File.{separator => |}
 import java.io.File
-import org.apache.lucene.analysis.br.BrazilianAnalyzer
-import org.apache.lucene.analysis.en.EnglishAnalyzer
+import java.io.File.{separator => |}
+
+import com.typesafe.scalalogging.LazyLogging
 import org.apache.lucene.analysis.Analyzer
+import org.apache.lucene.analysis.br.BrazilianAnalyzer
 import org.apache.lucene.analysis.core.KeywordAnalyzer
+import org.apache.lucene.analysis.en.EnglishAnalyzer
 import org.apache.lucene.document.Document
 import org.apache.lucene.index.IndexWriterConfig.OpenMode.CREATE_OR_APPEND
 import org.apache.lucene.index._
 import org.apache.lucene.queryparser.classic.QueryParser
-import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter
-import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder
-import org.apache.lucene.search.IndexSearcher
-import org.apache.lucene.store.FSDirectory.open
+import org.apache.lucene.search.vectorhighlight.{FastVectorHighlighter, SimpleFragListBuilder}
+import org.apache.lucene.search.{IndexSearcher, Query}
 import org.apache.lucene.store.Directory
+import org.apache.lucene.store.FSDirectory.open
 import org.apache.lucene.util.Version.LUCENE_44
-import org.apache.lucene.search.Query
+
+import scala.collection.parallel.CollectionConverters._
 import scala.collection.parallel.ParSeq
-import com.typesafe.scalalogging.slf4j.Logging
 
 
 object DocIndex {
 
-  private val preTag = (i: Int) => s"""<span class="highlight${i}">"""
+  private val preTag = (i: Int) => s"""<span class="highlight$i">"""
   private val postTag = (i: Int) => "</span>"
-  
-  def apply(indexDir: File, dataDir: File) : DocIndex =
+
+  def apply(indexDir: File, dataDir: File): DocIndex =
     DocIndex(DocIndexConfig(indexDir, dataDir, preTag, postTag, DocFields.identifierField, DocFields.contentField))
 
 }
-case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimit: Int = 3, maxNumOfFragment: Int = 1000) extends Logging {
+
+case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimit: Int = 3, maxNumOfFragment: Int = 1000) extends LazyLogging {
 
   import DocFields._
+
   private val docFactory = config.docFactory
   private val snippetHighlighter = config.highlighter(true)
   private val fullDocHighlighter = config.highlighter(false)
 
-  def insert(doc: Doc) : Unit =
+  def insert(doc: Doc): Unit =
     withIndex { index =>
-      val newer = index.searchId(doc.id).map(e => doc.newerThan(docFactory(e))).getOrElse(true)
+      val newer = index.searchId(doc.id).forall(e => doc.newerThan(docFactory(e)))
       if (newer) {
         index.delete(doc)
         index.insert(doc)
         logger.debug(s"inserting ${doc.id} [${doc.language}]")
       }
     }
-    .getOrHandleException { e =>
-      logger.error(s"Error when inserting ${doc.id}", e)
-    }
+      .getOrHandleException { e =>
+        logger.error(s"Error when inserting ${doc.id}", e)
+      }
 
-  def remove(doc: Doc) : Unit =
+  def remove(doc: Doc): Unit =
     withIndex { index =>
       index.delete(doc)
       logger.debug(s"removing ${doc.id}")
     }
-    .getOrHandleException { e =>
-      logger.error(s"Error when deleting ${doc.id}", e)
-    }
+      .getOrHandleException { e =>
+        logger.error(s"Error when deleting ${doc.id}", e)
+      }
 
-  def search(query: String) : Seq[DocMatch] =
+  def search(query: String): Seq[DocMatch] =
     withIndex { index =>
-      index.search(query, searchLimit).map{ r =>
+      index.search(query, searchLimit).map { r =>
         DocMatch(docFactory(r.document))
-      }.seq
+      }.seq.toSeq
     }
-    .getOrHandleException { e =>
-      logger.error(s"Error when searching for ${query}", e)
-      Seq()
-    }
+      .getOrHandleException { e =>
+        logger.error(s"Error when searching for ${query}", e)
+        Seq.empty
+      }
 
-  def snippets(query: String) : Seq[DocMatch] =
+  def snippets(query: String): Seq[DocMatch] =
     withIndex { index =>
-      index.search(query, searchLimit).map(snippets(_)).seq
+      index.search(query, searchLimit).map(snippets).seq.toSeq
     }
-    .getOrHandleException { e =>
-      logger.error(s"Error when searching for ${query}", e)
-      Seq()
-    }
+      .getOrHandleException { e =>
+        logger.error(s"Error when searching for ${query}", e)
+        Seq.empty
+      }
 
-  def snippets(id: String, query: String) : DocMatch =
+  def snippets(id: String, query: String): DocMatch =
     withIndex { index =>
-      index.searchInId(id, query).map(snippets(_)).getOrElse(DocMatch(NullDoc(id)))
+      index.searchInId(id, query).map(snippets).getOrElse(DocMatch(NullDoc(id)))
     }
-    .getOrHandleException { e =>
-      logger.error(s"Error when searching for ${query}", e)
-      DocMatch(NullDoc(id))
-    }
+      .getOrHandleException { e =>
+        logger.error(s"Error when searching for ${query}", e)
+        DocMatch(NullDoc(id))
+      }
 
   private def snippets(r: SearchResult) = {
     val fq = snippetHighlighter.getFieldQuery(r.q)
@@ -94,8 +97,8 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
       .getBestFragments(fq, r.reader, r.docId, contentField, maxNumOfFragment, highlightLimit)
     DocMatch(docFactory(r.document), fragments)
   }
-        
-  def highlight(id: String, query: String) : DocMatch =
+
+  def highlight(id: String, query: String): DocMatch =
     withIndex { index =>
       index.searchInId(id, query).map { r =>
         val fq = fullDocHighlighter.getFieldQuery(r.q)
@@ -104,18 +107,18 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
         DocMatch(docFactory(r.document), List(s))
       }.getOrElse(DocMatch(NullDoc(id)))
     }
-    .getOrHandleException { e =>
-      logger.error(s"Error when highlighting ${id} with query ${query}", e)
-      DocMatch(NullDoc(id))
-    }
+      .getOrHandleException { e =>
+        logger.error(s"Error when highlighting ${id} with query ${query}", e)
+        DocMatch(NullDoc(id))
+      }
 
   abstract class IndexRet[R] {
-    def getOrHandleException(error: Exception => R) : R
+    def getOrHandleException(error: Exception => R): R
   }
 
-  private def withIndex[R](success: IndexAdapter => R) : IndexRet[R] = try {
+  private def withIndex[R](success: IndexAdapter => R): IndexRet[R] = try {
     new IndexRet[R] {
-      def getOrHandleException(error: Exception => R) : R = success(config.indexAdapter)
+      def getOrHandleException(error: Exception => R): R = success(config.indexAdapter)
     }
   } catch {
     case e: Exception =>
@@ -130,12 +133,17 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
 }
 
 trait IndexAdapter {
-  def insert(doc: Doc) : Unit
-  def search(query: String, limit: Int) : ParSeq[SearchResult]
-  def searchId(id: String) : Option[Document]
-  def searchInId(id: String, query: String) : Option[SearchResult]
-  def delete(doc: Doc) : Unit
-  def close : Unit
+  def insert(doc: Doc): Unit
+
+  def search(query: String, limit: Int): ParSeq[SearchResult]
+
+  def searchId(id: String): Option[Document]
+
+  def searchInId(id: String, query: String): Option[SearchResult]
+
+  def delete(doc: Doc): Unit
+
+  def close: Unit
 }
 
 case class SearchResult(score: Float, q: Query, reader: IndexReader, document: Document, docId: Int)
@@ -150,10 +158,10 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
   private def fq(field: String, q: String) =
     "%s:(%s)".format(field, q)
 
-  private lazy val writers : ParSeq[IndexWriter] =
+  private lazy val writers: ParSeq[IndexWriter] =
     languages.values.toList.map(_.writer).par
 
-  private lazy val analyzers : ParSeq[LanguageConfig] =
+  private lazy val analyzers: ParSeq[LanguageConfig] =
     languages.values.toList.par
 
   val languages = {
@@ -185,18 +193,18 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
   def close =
     analyzers.foreach(_.close)
 
-  class DefaultIndexAdapter extends IndexAdapter with Logging {
+  class DefaultIndexAdapter extends IndexAdapter with LazyLogging {
 
-    def insert(doc: Doc) : Unit = {
+    def insert(doc: Doc): Unit = {
       val w = languages(doc.language).writer
       w.addDocument(doc.document)
       w.commit
     }
 
-    def search(query: String, limit: Int) : ParSeq[SearchResult] =
+    def search(query: String, limit: Int): ParSeq[SearchResult] =
       try analyzers.flatMap { a =>
         val q = a.parser.parse(fq(contentField, query))
-        a.searcher.search(q, limit).scoreDocs.map {d =>
+        a.searcher.search(q, limit).scoreDocs.map { d =>
           SearchResult(d.score, q, a.searcher.getIndexReader, a.searcher.doc(d.doc), d.doc)
         }
       } catch {
@@ -205,10 +213,10 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
           ParSeq()
       }
 
-    def searchId(id: String) : Option[Document] =
+    def searchId(id: String): Option[Document] =
       searchInId(id, id).map(r => r.document)
 
-    def searchInId(id: String, query: String) : Option[SearchResult] = try {
+    def searchInId(id: String, query: String): Option[SearchResult] = try {
       val q = idQueryParser.parse(fq(idField, s""" "${id}" """.trim))
       analyzers.flatMap { a =>
         a.searcher.search(q, 1).scoreDocs.map { d =>
@@ -223,7 +231,7 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
         None
     }
 
-    def delete(doc: Doc) : Unit =
+    def delete(doc: Doc): Unit =
       writers.foreach(_.deleteDocuments(new Term(idField, doc.id)))
 
     def close =
@@ -237,6 +245,7 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
       new LanguageConfig(lang, analyzer, open(dir))
     }
   }
+
   class LanguageConfig(val lang: String, val analyzer: Analyzer, dir: Directory) {
 
     val writer = {
@@ -252,12 +261,17 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
       DirectoryReader.indexExists(dir)
 
     def close =
-      try { writer.close } catch { case e: Exception => }
+      try {
+        writer.close
+      } catch {
+        case e: Exception =>
+      }
 
     def toPair = (lang, this)
   }
+
 }
 
 trait DocIndexes {
-  def index(username: String) : Option[DocIndex]
+  def index(username: String): Option[DocIndex]
 }

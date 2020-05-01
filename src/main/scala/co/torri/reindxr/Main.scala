@@ -3,13 +3,13 @@ package co.torri.reindxr
 import java.io.File
 
 import co.torri.reindxr.http._
-import users.UsersMonitor
-import com.typesafe.scalalogging.slf4j.Logging
+import co.torri.reindxr.users.UsersMonitor
+import com.typesafe.scalalogging.LazyLogging
 
 
-object Main extends Logging {
+object Main extends LazyLogging {
 
-  def main(args: Array[String]) : Unit = {
+  def main(args: Array[String]): Unit = {
 
     val dataDir = new File(args(0))
     val indexDir = new File(args(1))

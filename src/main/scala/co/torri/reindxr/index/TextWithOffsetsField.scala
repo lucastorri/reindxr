@@ -1,9 +1,10 @@
 package co.torri.reindxr.index
 
-import org.apache.lucene.document.{FieldType, Field}
+import org.apache.lucene.document.{Field, FieldType}
 
 
 class TextWithOffsetsField(name: String, text: String) extends Field(name, text, TextWithOffsetsField.ft)
+
 object TextWithOffsetsField {
 
   private[TextWithOffsetsField] def ft = {

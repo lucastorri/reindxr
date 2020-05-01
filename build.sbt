@@ -1,12 +1,10 @@
-import AssemblyKeys._
-
 organization := "co.torri"
 
 name := "reindxr"
 
 version := "0.6.3"
 
-scalaVersion := "2.10.2"
+scalaVersion := "2.13.1"
 
 libraryDependencies ++= Seq(
   "org.apache.lucene" % "lucene-core" % "4.4.0",
@@ -14,31 +12,15 @@ libraryDependencies ++= Seq(
   "org.apache.lucene" % "lucene-analyzers-common" % "4.4.0",
   "org.apache.lucene" % "lucene-queryparser" % "4.4.0",
   "org.apache.tika" % "tika-parsers" % "1.4",
-  "net.databinder" %% "unfiltered-netty-server" % "0.6.8",
-  "com.typesafe" %% "scalalogging-slf4j" % "1.0.1",
-  "org.slf4j" % "slf4j-jdk14" % "1.7.5",
-  "org.json4s" %% "json4s-native" % "3.2.4"
+  "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2",
+  "ch.qos.logback" % "logback-classic" % "1.2.3",
+
+  "org.http4s" %% "http4s-dsl" % "0.21.4",
+  "org.http4s" %% "http4s-blaze-server" % "0.21.4",
+  "org.http4s" %% "http4s-blaze-client" % "0.21.4",
+  "org.http4s" %% "http4s-circe" % "0.21.4",
+  "io.circe" %% "circe-generic" % "0.13.0",
+  "io.circe" %% "circe-literal" % "0.13.0",
+
+  "org.scala-lang.modules" %% "scala-parallel-collections" % "0.2.0"
 )
-
-seq(assemblySettings: _*)
-
-scalacOptions += "-deprecation"
-
-homepage := Some(url("https://github.com/lucastorri/scala-jsonr/"))
-
-publishMavenStyle := true
-
-publishTo <<= version { (v: String) =>
-  val nexus = "https://oss.sonatype.org/"
-  if (v.trim.endsWith("SNAPSHOT")) 
-    Some("snapshots" at nexus + "content/repositories/snapshots") 
-  else
-    Some("releases"  at nexus + "service/local/staging/deploy/maven2")
-}
-
-publishArtifact in Test := false
-
-pomIncludeRepository := { _ => false }
-
-net.virtualvoid.sbt.graph.Plugin.graphSettings
-
