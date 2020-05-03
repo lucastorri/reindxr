@@ -2,10 +2,7 @@ package co.torri.reindxr.filemon
 
 import java.io.File
 
-
 case class DataFile private(file: File, metadata: File) {
-
-  def isValid: Boolean = file.exists
 
   def hasMetadata: Boolean = metadata.exists
 

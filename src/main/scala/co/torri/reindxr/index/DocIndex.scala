@@ -22,17 +22,7 @@ import scala.collection.parallel.CollectionConverters._
 import scala.collection.parallel.ParSeq
 
 
-object DocIndex {
-
-  private val preTag = (i: Int) => s"""<span class="highlight-$i">"""
-  private val postTag = (_: Int) => "</span>"
-
-  def apply(indexDir: File, dataDir: File): DocIndex =
-    DocIndex(DocIndexConfig(indexDir, dataDir, preTag, postTag, DocFields.identifierField, DocFields.contentField))
-
-}
-
-case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimit: Int = 3, maxNumOfFragment: Int = 1000) extends LazyLogging {
+class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimit: Int = 3, maxNumOfFragment: Int = 1000) extends LazyLogging {
 
   import DocFields._
 
@@ -125,6 +115,16 @@ case class DocIndex(config: DocIndexConfig, searchLimit: Int = 20, highlightLimi
 
   def close(): Unit =
     config.close()
+
+}
+
+object DocIndex {
+
+  private val preTag = (i: Int) => s"""<span class="highlight-$i">"""
+  private val postTag = (_: Int) => "</span>"
+
+  def apply(indexDir: File, dataDir: File): DocIndex =
+    new DocIndex(DocIndexConfig(indexDir, dataDir, preTag, postTag, DocFields.identifierField, DocFields.contentField))
 
 }
 
