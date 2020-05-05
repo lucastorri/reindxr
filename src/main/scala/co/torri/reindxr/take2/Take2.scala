@@ -319,8 +319,6 @@ object LuceneDocumentIndex {
       .map { case (language, analyzer) => language -> new LanguageSpecificIndex(language, analyzer, directory) }
       .toMap
 
-    private val defaultIndex = languageSpecificIndices(defaultLanguage)
-
     def insert(language: String, luceneDocument: LuceneDocument): Unit = {
       val writer = languageSpecificIndices.getOrElse(language, languageSpecificIndices(defaultLanguage)).writer
       writer.addDocument(luceneDocument)
@@ -386,7 +384,7 @@ object LuceneDocumentIndex {
       languageSpecificIndices.values.foreach(_.close())
   }
 
-  class LanguageSpecificIndex(val language: String, val analyzer: Analyzer, directory: Directory) {
+  class LanguageSpecificIndex(val language: String, analyzer: Analyzer, directory: Directory) {
 
     val parser: QueryParser = queryParser(fields.content, analyzer)
 
