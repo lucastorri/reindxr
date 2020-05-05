@@ -15,7 +15,7 @@ object Main {
       new LuceneDocumentIndex(Files.createDirectories(indexDirectory.resolve(accountId.value)), parser, store(accountId))
 
     def reindxr(accountId: AccountId): Reindxr =
-      new StoreIndexSplitReindxr(store(accountId), index(accountId))
+      new ExternalIndexReindxr(store(accountId), index(accountId))
 
     val default = reindxr(AccountId("default"))
 

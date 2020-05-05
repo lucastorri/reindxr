@@ -2,7 +2,7 @@ package co.torri.reindxr.take2
 
 import cats.effect.IO
 
-class StoreIndexSplitReindxr(store: DocumentStore, index: DocumentIndex) extends Reindxr {
+class ExternalIndexReindxr(store: DocumentStore, index: DocumentIndex) extends Reindxr {
 
   override def add(document: Document): IO[Unit] =
     for {
