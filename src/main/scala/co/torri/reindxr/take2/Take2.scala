@@ -216,7 +216,6 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
     }
 
   override def snippets(query: String): IO[Seq[DocumentMatch]] =
-  //TODO snippets seem broken
     IO(index.search(query, 10)).flatMap { results =>
       results.toList.map(highlightSnippets).sequence.map(_.toSeq)
     }
