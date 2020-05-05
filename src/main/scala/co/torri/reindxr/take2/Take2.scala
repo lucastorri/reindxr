@@ -17,10 +17,10 @@ import org.apache.lucene.document.Field.Store
 import org.apache.lucene.document.{StringField, Document => LuceneDocument}
 import org.apache.lucene.index.IndexWriterConfig.OpenMode.CREATE_OR_APPEND
 import org.apache.lucene.index._
-import org.apache.lucene.queryparser.classic.{MultiFieldQueryParser, QueryParser}
+import org.apache.lucene.queryparser.classic.QueryParser
 import org.apache.lucene.queryparser.flexible.standard.QueryParserUtil
-import org.apache.lucene.search.{BooleanClause, BooleanQuery, IndexSearcher}
 import org.apache.lucene.search.vectorhighlight.{FastVectorHighlighter, FieldFragList, SimpleFragListBuilder, SimpleFragmentsBuilder}
+import org.apache.lucene.search.{BooleanClause, BooleanQuery, IndexSearcher, Query}
 import org.apache.lucene.store.{Directory, FSDirectory}
 import org.apache.lucene.util.Version.LUCENE_44
 import org.apache.tika.detect.DefaultDetector
@@ -302,41 +302,41 @@ object LuceneDocumentIndex {
     DocumentId(document.getField(fields.id).stringValue)
 
   private val defaultLanguage = "en"
-  private val supportedLanguages: Map[String, Analyzer] =
-    Map(
-      "en" -> new EnglishAnalyzer(luceneVersion),
-      "pt" -> new BrazilianAnalyzer(luceneVersion),
-    )
+  private val supportedLanguages =
+    Seq(
+      new IndexLanguage("en", new EnglishAnalyzer(luceneVersion)),
+      new IndexLanguage("pt", new BrazilianAnalyzer(luceneVersion)),
+    ).map(indexLanguage => indexLanguage.code -> indexLanguage).toMap
 
   private def formatQuery(field: String, q: String): String =
     s"$field:($q)"
 
+  private val idAnalyzer = new KeywordAnalyzer
+
   //TODO just inline this guy?
-  class Index(directory: Directory) extends LazyLogging {
+  private class Index(directory: Directory) extends LazyLogging {
 
     private val fieldsToLoad = Set(fields.id).asJava
-    private val languageSpecificIndices = supportedLanguages.view
-      .map { case (language, analyzer) => language -> new LanguageSpecificIndex(language, analyzer, directory) }
-      .toMap
 
     def insert(language: String, luceneDocument: LuceneDocument): Unit = {
-      val writer = languageSpecificIndices.getOrElse(language, languageSpecificIndices(defaultLanguage)).writer
-      writer.addDocument(luceneDocument)
-      writer.commit()
+      val analyzer = supportedLanguages.getOrElse(language, supportedLanguages(defaultLanguage)).analyzer
+      withWriter(analyzer)(_.addDocument(luceneDocument))
     }
 
     //TODO use ParSeq
     def search(query: String, limit: Int): Seq[SearchResult] =
       try {
-        languageSpecificIndices.values
-          .flatMap { index =>
-            val q = index.parser.parse(formatQuery(fields.content, query))
-            index.searcher
-              .search(q, limit)
-              .scoreDocs
-              .map { doc =>
-                index.language -> SearchResult(doc.score, q, index.searcher.getIndexReader, index.searcher.doc(doc.doc, fieldsToLoad), doc.doc)
-              }
+        supportedLanguages.values
+          .flatMap { language =>
+            val q = language.parseContentQuery(query)
+            withSearcher { searcher =>
+              searcher
+                .search(q, limit)
+                .scoreDocs
+                .map { doc =>
+                  language.code -> SearchResult(doc.score, q, searcher.getIndexReader, searcher.doc(doc.doc, fieldsToLoad), doc.doc)
+                }
+            }
           }
           .groupBy { case (_, result) => result.docId }
           .view
@@ -353,19 +353,21 @@ object LuceneDocumentIndex {
       }
 
     def searchInId(id: String, query: String): Option[SearchResult] = try {
-      languageSpecificIndices.values
+      supportedLanguages.values
         .toSeq
-        .flatMap { index =>
+        .flatMap { language =>
           val q = new BooleanQuery()
-          q.add(idQueryParser.parse(s"""${fields.id}:"${QueryParserUtil.escape(id)}""""), BooleanClause.Occur.MUST)
-          q.add(index.parser.parse(formatQuery(fields.content, query)), BooleanClause.Occur.SHOULD)
-          index.searcher
-            .search(q, 1)
-            .scoreDocs
-            .map { d =>
-              val doc = index.searcher.doc(d.doc, fieldsToLoad)
-              SearchResult(d.score, q, index.searcher.getIndexReader, doc, d.doc)
-            }
+          q.add(idQuery(id), BooleanClause.Occur.MUST)
+          q.add(language.parseContentQuery(query), BooleanClause.Occur.SHOULD)
+          withSearcher { searcher =>
+            searcher
+              .search(q, 1)
+              .scoreDocs
+              .map { d =>
+                val doc = searcher.doc(d.doc, fieldsToLoad)
+                SearchResult(d.score, q, searcher.getIndexReader, doc, d.doc)
+              }
+          }
         }
         .sortBy(result => - result.score)
         .headOption
@@ -376,36 +378,34 @@ object LuceneDocumentIndex {
     }
 
     def delete(documentId: DocumentId): Unit =
-      languageSpecificIndices.values.foreach { index =>
-        index.writer.deleteDocuments(new Term(fields.id, documentId.value))
-      }
+      withWriter(idAnalyzer)(_.deleteDocuments(idQuery(documentId.value)))
 
-    def close(): Unit =
-      languageSpecificIndices.values.foreach(_.close())
+    private def withSearcher[T](f: IndexSearcher => T): T =
+      f(new IndexSearcher(DirectoryReader.open(directory)))
+
+    private def withWriter[T](analyzer: Analyzer)(f: IndexWriter => T): T = {
+      val config = new IndexWriterConfig(luceneVersion, analyzer).setOpenMode(CREATE_OR_APPEND)
+      val writer = new IndexWriter(directory, config)
+      try {
+        val result = f(writer)
+        writer.commit()
+        result
+      } finally {
+        writer.close(true)
+      }
+    }
   }
 
-  class LanguageSpecificIndex(val language: String, analyzer: Analyzer, directory: Directory) {
+  private def idQuery(id: String): Query =
+    idQueryParser.parse(s"""${fields.id}:"${QueryParserUtil.escape(id)}"""")
 
-    val parser: QueryParser = queryParser(fields.content, analyzer)
+  private class IndexLanguage(val code: String, val analyzer: Analyzer) {
 
-    def writer: IndexWriter = {
-      val config = new IndexWriterConfig(luceneVersion, analyzer).setOpenMode(CREATE_OR_APPEND)
-      new IndexWriter(directory, config)
-    }
+    private val parser: QueryParser = queryParser(fields.content, analyzer)
 
-    def searcher: IndexSearcher =
-      new IndexSearcher(DirectoryReader.open(directory))
+    def parseQuery(query: String): Query = parser.parse(query)
 
-    def indexExists: Boolean =
-      DirectoryReader.indexExists(directory)
-
-    def close(): Unit =
-      try {
-        writer.close()
-      } catch {
-        case e: Exception =>
-        //TODO logger.error("Failed to close language config", e)
-      }
+    def parseContentQuery(query: String): Query = parser.parse(formatQuery(fields.content, query))
   }
 
   private def queryParser(fieldName: String, analyzer: Analyzer): QueryParser = {
@@ -415,7 +415,7 @@ object LuceneDocumentIndex {
   }
 
   private val idQueryParser =
-    queryParser(fields.id, new KeywordAnalyzer)
+    queryParser(fields.id, idAnalyzer)
 }
 
 class TikaDocumentParser extends DocumentParser {
