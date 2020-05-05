@@ -369,6 +369,7 @@ object LuceneDocumentIndex {
               SearchResult(d.score, q, index.searcher.getIndexReader, doc, d.doc)
             }
         }
+        .sortBy(result => - result.score)
         .headOption
     } catch {
       case e: Exception =>
