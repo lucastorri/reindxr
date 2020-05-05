@@ -5,7 +5,6 @@ import java.nio.file.{Files, Path}
 import cats.effect.IO
 import cats.implicits._
 import co.torri.reindxr.index.{SearchResult, TextWithOffsetsField}
-import com.typesafe.scalalogging.LazyLogging
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.br.BrazilianAnalyzer
 import org.apache.lucene.analysis.core.KeywordAnalyzer
@@ -25,7 +24,7 @@ import scala.util.Using
 
 
 //TODO could store the document too instead of using a store to retrieve the content. Perhaps that's another implementation
-class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: DocumentStore) extends DocumentIndex with LazyLogging {
+class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: DocumentStore) extends DocumentIndex {
 
   require(Files.isDirectory(directory), s"$directory is not a directory")
 
