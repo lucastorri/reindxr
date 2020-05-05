@@ -6,6 +6,7 @@ import java.nio.file.{Files, Path, Paths, StandardOpenOption}
 import java.util.Properties
 
 import cats.effect.IO
+import cats.implicits._
 import co.torri.reindxr.index.{SearchResult, TextWithOffsetsField}
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.lucene.analysis.Analyzer
@@ -16,8 +17,9 @@ import org.apache.lucene.document.Field.Store
 import org.apache.lucene.document.{StringField, Document => LuceneDocument}
 import org.apache.lucene.index.IndexWriterConfig.OpenMode.CREATE_OR_APPEND
 import org.apache.lucene.index._
-import org.apache.lucene.queryparser.classic.QueryParser
-import org.apache.lucene.search.IndexSearcher
+import org.apache.lucene.queryparser.classic.{MultiFieldQueryParser, QueryParser}
+import org.apache.lucene.queryparser.flexible.standard.QueryParserUtil
+import org.apache.lucene.search.{BooleanClause, BooleanQuery, IndexSearcher}
 import org.apache.lucene.search.vectorhighlight.{FastVectorHighlighter, FieldFragList, SimpleFragListBuilder, SimpleFragmentsBuilder}
 import org.apache.lucene.store.{Directory, FSDirectory}
 import org.apache.lucene.util.Version.LUCENE_44
@@ -26,8 +28,6 @@ import org.apache.tika.language.LanguageIdentifier
 import org.apache.tika.metadata.Metadata
 import org.apache.tika.parser.AutoDetectParser
 import org.apache.tika.sax.BodyContentHandler
-
-import cats.implicits._
 
 import scala.jdk.CollectionConverters._
 import scala.util.Using
@@ -175,17 +175,17 @@ object Main {
 
     val default = reindxr(AccountId("default"))
 
-//    default.add(new Document {
-//      override def id: DocumentId = DocumentId("hi!")
-//
-//      override def content: IO[InputStream] = IO(Files.newInputStream(Paths.get("/Users/lucastorri/Downloads/WHO-COVID-19-Community_Transmission-2020.1-eng.pdf")))
-//
-//      override def metadata: Map[String, String] = Map(
-//        "id" -> "hi!",
-//        "length" -> "big",
-//        "timestamp" -> "long ago",
-//      )
-//    }).unsafeRunSync()
+    //    default.add(new Document {
+    //      override def id: DocumentId = DocumentId("hi!")
+    //
+    //      override def content: IO[InputStream] = IO(Files.newInputStream(Paths.get("/Users/lucastorri/Downloads/WHO-COVID-19-Community_Transmission-2020.1-eng.pdf")))
+    //
+    //      override def metadata: Map[String, String] = Map(
+    //        "id" -> "hi!",
+    //        "length" -> "big",
+    //        "timestamp" -> "long ago",
+    //      )
+    //    }).unsafeRunSync()
 
     println("===============")
     default.search("WHO").unsafeRunSync().foreach(println)
@@ -200,6 +200,7 @@ object Main {
 class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: DocumentStore) extends DocumentIndex with LazyLogging {
 
   require(Files.isDirectory(directory), s"$directory is not a directory")
+
   import LuceneDocumentIndex._
 
   private val index = new Index(FSDirectory.open(directory.toFile))
@@ -215,7 +216,7 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
     }
 
   override def snippets(query: String): IO[Seq[DocumentMatch]] =
-    //TODO snippets seem broken
+  //TODO snippets seem broken
     IO(index.search(query, 10)).flatMap { results =>
       results.toList.map(highlightSnippets).sequence.map(_.toSeq)
     }
@@ -230,12 +231,12 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
   override def add(document: Document): IO[Unit] =
     parser.parse(document).map { parsed =>
       val luceneDoc = new LuceneDocument
-//      metadata.foreach { case (field, value) =>
-//        d.add(new TextField(field, value, Store.YES))
-//      }
+      //      metadata.foreach { case (field, value) =>
+      //        d.add(new TextField(field, value, Store.YES))
+      //      }
       luceneDoc.add(new StringField(fields.id, parsed.documentId.value, Store.YES))
-//      d.add(new StringField(timestampField, self.timestamp.toString, Store.YES))
-//      d.add(new StringField(metadataTimestampField, self.metadataTimestamp.toString, Store.YES))
+      //      d.add(new StringField(timestampField, self.timestamp.toString, Store.YES))
+      //      d.add(new StringField(metadataTimestampField, self.metadataTimestamp.toString, Store.YES))
       luceneDoc.add(new StringField(fields.language, parsed.language, Store.YES))
       luceneDoc.add(new TextWithOffsetsField(fields.content, parsed.content))
 
@@ -250,10 +251,10 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
   override def updateMetadata(documentId: DocumentId, newMetadata: Map[String, String]): IO[Unit] = ???
 
   private def highlightSnippets(result: SearchResult): IO[DocumentMatch] =
-    highlightDocument(result, true)
+    highlightDocument(result, snippetsOnly = true)
 
   private def highlightWholeDocument(result: SearchResult): IO[DocumentMatch] =
-    highlightDocument(result, false)
+    highlightDocument(result, snippetsOnly = false)
 
   private def highlightDocument(result: SearchResult, snippetsOnly: Boolean): IO[DocumentMatch] = {
     val documentId = extractId(result)
@@ -278,6 +279,7 @@ object LuceneDocumentIndex {
   private val maxFragments = 1000
   private val highlightLimit = 3
   private val luceneVersion = LUCENE_44
+
   private object fields {
     val id = "id"
     val content = "content"
@@ -292,20 +294,19 @@ object LuceneDocumentIndex {
     val fragBuilder = TagFragmentBuilder2(content, snippetsOnly, preTag, postTag)
     new FastVectorHighlighter(true, true, fragListBuilder, fragBuilder)
   }
+
   def extractId(result: SearchResult): DocumentId =
     extractId(result.document)
 
   def extractId(document: LuceneDocument): DocumentId =
     DocumentId(document.getField(fields.id).stringValue)
 
-  private val supportedLanguages: Map[String, Analyzer] = {
-    val en = new EnglishAnalyzer(luceneVersion)
-
+  private val defaultLanguage = "en"
+  private val supportedLanguages: Map[String, Analyzer] =
     Map(
-      "en" -> en,
+      "en" -> new EnglishAnalyzer(luceneVersion),
       "pt" -> new BrazilianAnalyzer(luceneVersion),
-    ).withDefaultValue(en)
-  }
+    )
 
   private def formatQuery(field: String, q: String): String =
     s"$field:($q)"
@@ -313,12 +314,15 @@ object LuceneDocumentIndex {
   //TODO just inline this guy?
   class Index(directory: Directory) extends LazyLogging {
 
+    private val fieldsToLoad = Set(fields.id).asJava
     private val languageSpecificIndices = supportedLanguages.view
       .map { case (language, analyzer) => language -> new LanguageSpecificIndex(language, analyzer, directory) }
       .toMap
 
+    private val defaultIndex = languageSpecificIndices(defaultLanguage)
+
     def insert(language: String, luceneDocument: LuceneDocument): Unit = {
-      val writer = languageSpecificIndices(language).writer
+      val writer = languageSpecificIndices.getOrElse(language, languageSpecificIndices(defaultLanguage)).writer
       writer.addDocument(luceneDocument)
       writer.commit()
     }
@@ -333,10 +337,9 @@ object LuceneDocumentIndex {
               .search(q, limit)
               .scoreDocs
               .map { doc =>
-                index.language -> SearchResult(doc.score, q, index.searcher.getIndexReader, index.searcher.doc(doc.doc), doc.doc)
+                index.language -> SearchResult(doc.score, q, index.searcher.getIndexReader, index.searcher.doc(doc.doc, fieldsToLoad), doc.doc)
               }
           }
-          //TODO the same as below should be done in the other searches
           .groupBy { case (_, result) => result.docId }
           .view
           .values
@@ -351,18 +354,22 @@ object LuceneDocumentIndex {
           Seq.empty
       }
 
-    def searchId(id: String): Option[LuceneDocument] =
-      searchInId(id, id).map(result => result.document)
-
     def searchInId(id: String, query: String): Option[SearchResult] = try {
-      val q = idQueryParser.parse(formatQuery(fields.id, s""""$id""""))
-      languageSpecificIndices.values.toSeq.flatMap { index =>
-        index.searcher.search(q, 1).scoreDocs.map { d =>
-          val doc = index.searcher.doc(d.doc)
-          val q = index.parser.parse(formatQuery(fields.content, query))
-          SearchResult(d.score, q, index.searcher.getIndexReader, doc, d.doc)
+      languageSpecificIndices.values
+        .toSeq
+        .flatMap { index =>
+          val q = new BooleanQuery()
+          q.add(idQueryParser.parse(s"""${fields.id}:"${QueryParserUtil.escape(id)}""""), BooleanClause.Occur.MUST)
+          q.add(index.parser.parse(formatQuery(fields.content, query)), BooleanClause.Occur.SHOULD)
+          index.searcher
+            .search(q, 1)
+            .scoreDocs
+            .map { d =>
+              val doc = index.searcher.doc(d.doc, fieldsToLoad)
+              SearchResult(d.score, q, index.searcher.getIndexReader, doc, d.doc)
+            }
         }
-      }.headOption
+        .headOption
     } catch {
       case e: Exception =>
         logger.error("Error when id searching", e)
@@ -378,7 +385,7 @@ object LuceneDocumentIndex {
       languageSpecificIndices.values.foreach(_.close())
   }
 
-  class LanguageSpecificIndex(val language: String, analyzer: Analyzer, directory: Directory) {
+  class LanguageSpecificIndex(val language: String, val analyzer: Analyzer, directory: Directory) {
 
     val parser: QueryParser = queryParser(fields.content, analyzer)
 
@@ -387,7 +394,8 @@ object LuceneDocumentIndex {
       new IndexWriter(directory, config)
     }
 
-    lazy val searcher: IndexSearcher = new IndexSearcher(DirectoryReader.open(directory))
+    def searcher: IndexSearcher =
+      new IndexSearcher(DirectoryReader.open(directory))
 
     def indexExists: Boolean =
       DirectoryReader.indexExists(directory)
@@ -397,11 +405,11 @@ object LuceneDocumentIndex {
         writer.close()
       } catch {
         case e: Exception =>
-          //TODO logger.error("Failed to close language config", e)
+        //TODO logger.error("Failed to close language config", e)
       }
   }
 
-  private def queryParser(fieldName: String, analyzer: Analyzer) = {
+  private def queryParser(fieldName: String, analyzer: Analyzer): QueryParser = {
     val parser = new QueryParser(luceneVersion, fieldName, analyzer)
     parser.setDefaultOperator(QueryParser.Operator.AND)
     parser
