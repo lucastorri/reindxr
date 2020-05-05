@@ -7,10 +7,10 @@ version := "0.6.3"
 scalaVersion := "2.13.1"
 
 libraryDependencies ++= Seq(
-  "org.apache.lucene" % "lucene-core" % "4.4.0",
-  "org.apache.lucene" % "lucene-highlighter" % "4.4.0",
-  "org.apache.lucene" % "lucene-analyzers-common" % "4.4.0",
-  "org.apache.lucene" % "lucene-queryparser" % "4.4.0",
+  "org.apache.lucene" % "lucene-core" % "8.5.1",
+  "org.apache.lucene" % "lucene-highlighter" % "8.5.1",
+  "org.apache.lucene" % "lucene-analyzers-common" % "8.5.1",
+  "org.apache.lucene" % "lucene-queryparser" % "8.5.1",
   "org.apache.tika" % "tika-parsers" % "1.4",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2",
   "ch.qos.logback" % "logback-classic" % "1.2.3",

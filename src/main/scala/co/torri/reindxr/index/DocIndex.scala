@@ -16,7 +16,6 @@ import org.apache.lucene.search.vectorhighlight.{FastVectorHighlighter, SimpleFr
 import org.apache.lucene.search.{IndexSearcher, Query}
 import org.apache.lucene.store.Directory
 import org.apache.lucene.store.FSDirectory.open
-import org.apache.lucene.util.Version.LUCENE_44
 
 import scala.collection.parallel.CollectionConverters._
 import scala.collection.parallel.ParSeq
@@ -146,8 +145,6 @@ case class SearchResult(score: Float, q: Query, reader: IndexReader, document: D
 
 case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, postTag: Int => String, idField: String, contentField: String) extends LazyLogging {
 
-  val version = LUCENE_44
-
   private val idQueryParser =
     queryParser(idField, new KeywordAnalyzer)
 
@@ -161,15 +158,15 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
     languages.values.toList.par
 
   val languages: Map[String, LanguageConfig] = {
-    val default = LanguageConfig("en", new EnglishAnalyzer(version))
+    val default = LanguageConfig("en", new EnglishAnalyzer())
     Map(
       default.toPair,
-      LanguageConfig("pt", new BrazilianAnalyzer(version)).toPair
+      LanguageConfig("pt", new BrazilianAnalyzer()).toPair
     ).withDefaultValue(default)
   }
 
   private def queryParser(fieldName: String, analyzer: Analyzer) = {
-    val parser = new QueryParser(version, fieldName, analyzer)
+    val parser = new QueryParser(fieldName, analyzer)
     parser.setDefaultOperator(QueryParser.Operator.AND)
     parser
   }
@@ -238,18 +235,18 @@ case class DocIndexConfig(indexDir: File, dataDir: File, preTag: Int => String, 
     def apply(lang: String, analyzer: Analyzer): LanguageConfig = {
       val dir = new File(indexDir.getAbsolutePath + | + lang)
       dir.mkdirs
-      new LanguageConfig(lang, analyzer, open(dir))
+      new LanguageConfig(lang, analyzer, open(dir.toPath))
     }
   }
 
   class LanguageConfig(val lang: String, val analyzer: Analyzer, dir: Directory) {
 
     val writer: IndexWriter = {
-      val config = new IndexWriterConfig(version, analyzer).setOpenMode(CREATE_OR_APPEND)
+      val config = new IndexWriterConfig(analyzer).setOpenMode(CREATE_OR_APPEND)
       new IndexWriter(dir, config)
     }
 
-    def searcher: IndexSearcher = new IndexSearcher(DirectoryReader.open(writer, true))
+    def searcher: IndexSearcher = new IndexSearcher(DirectoryReader.open(writer))
 
     lazy val parser: QueryParser = queryParser(contentField, analyzer)
 

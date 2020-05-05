@@ -22,7 +22,6 @@ import org.apache.lucene.queryparser.flexible.standard.QueryParserUtil
 import org.apache.lucene.search.vectorhighlight.{FastVectorHighlighter, FieldFragList, SimpleFragListBuilder, SimpleFragmentsBuilder}
 import org.apache.lucene.search.{BooleanClause, BooleanQuery, IndexSearcher, Query}
 import org.apache.lucene.store.{Directory, FSDirectory}
-import org.apache.lucene.util.Version.LUCENE_44
 import org.apache.tika.detect.DefaultDetector
 import org.apache.tika.language.LanguageIdentifier
 import org.apache.tika.metadata.Metadata
@@ -175,20 +174,21 @@ object Main {
 
     val default = reindxr(AccountId("default"))
 
-    //    default.add(new Document {
-    //      override def id: DocumentId = DocumentId("hi!")
-    //
-    //      override def content: IO[InputStream] = IO(Files.newInputStream(Paths.get("/Users/lucastorri/Downloads/WHO-COVID-19-Community_Transmission-2020.1-eng.pdf")))
-    //
-    //      override def metadata: Map[String, String] = Map(
-    //        "id" -> "hi!",
-    //        "length" -> "big",
-    //        "timestamp" -> "long ago",
-    //      )
-    //    }).unsafeRunSync()
+//    default.add(new Document {
+//      override def id: DocumentId = DocumentId("hi!")
+//
+//      override def content: IO[InputStream] = IO(Files.newInputStream(Paths.get("/Users/lucastorri/Downloads/WHO-COVID-19-Community_Transmission-2020.1-eng.pdf")))
+//
+//      override def metadata: Map[String, String] = Map(
+//        "id" -> "hi!",
+//        "length" -> "big",
+//        "timestamp" -> "long ago",
+//      )
+//    }).unsafeRunSync()
 
     println("===============")
     default.search("WHO").unsafeRunSync().foreach(println)
+//    default.search("length:big WHO").unsafeRunSync().foreach(println)
     println("---------------")
     default.snippets("outbreak").unsafeRunSync().foreach(println)
     default.snippets(DocumentId("hi!"), "outbreak").unsafeRunSync().foreach(println)
@@ -203,7 +203,7 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
 
   import LuceneDocumentIndex._
 
-  private val index = new Index(FSDirectory.open(directory.toFile))
+  private val index = new Index(FSDirectory.open(directory))
 
   override def search(query: String): IO[Seq[DocumentMatch]] =
     IO {
@@ -278,7 +278,6 @@ object LuceneDocumentIndex {
 
   private val maxFragments = 1000
   private val highlightLimit = 3
-  private val luceneVersion = LUCENE_44
 
   private object fields {
     val id = "id"
@@ -304,8 +303,8 @@ object LuceneDocumentIndex {
   private val defaultLanguage = "en"
   private val supportedLanguages =
     Seq(
-      new IndexLanguage("en", new EnglishAnalyzer(luceneVersion)),
-      new IndexLanguage("pt", new BrazilianAnalyzer(luceneVersion)),
+      new IndexLanguage("en", new EnglishAnalyzer()),
+      new IndexLanguage("pt", new BrazilianAnalyzer()),
     ).map(indexLanguage => indexLanguage.code -> indexLanguage).toMap
 
   private def formatQuery(field: String, q: String): String =
@@ -356,9 +355,10 @@ object LuceneDocumentIndex {
       supportedLanguages.values
         .toSeq
         .flatMap { language =>
-          val q = new BooleanQuery()
-          q.add(idQuery(id), BooleanClause.Occur.MUST)
-          q.add(language.parseContentQuery(query), BooleanClause.Occur.SHOULD)
+          val q = new BooleanQuery.Builder()
+            .add(idQuery(id), BooleanClause.Occur.MUST)
+            .add(language.parseContentQuery(query), BooleanClause.Occur.SHOULD)
+            .build()
           withSearcher { searcher =>
             searcher
               .search(q, 1)
@@ -369,7 +369,7 @@ object LuceneDocumentIndex {
               }
           }
         }
-        .sortBy(result => - result.score)
+        .sortBy(result => -result.score)
         .headOption
     } catch {
       case e: Exception =>
@@ -384,16 +384,13 @@ object LuceneDocumentIndex {
       f(new IndexSearcher(DirectoryReader.open(directory)))
 
     private def withWriter[T](analyzer: Analyzer)(f: IndexWriter => T): T = {
-      val config = new IndexWriterConfig(luceneVersion, analyzer).setOpenMode(CREATE_OR_APPEND)
-      val writer = new IndexWriter(directory, config)
-      try {
+      val config = new IndexWriterConfig(analyzer).setOpenMode(CREATE_OR_APPEND)
+      Using(new IndexWriter(directory, config)) { writer =>
         val result = f(writer)
         writer.commit()
         result
-      } finally {
-        writer.close(true)
       }
-    }
+      }.get
   }
 
   private def idQuery(id: String): Query =
@@ -409,7 +406,7 @@ object LuceneDocumentIndex {
   }
 
   private def queryParser(fieldName: String, analyzer: Analyzer): QueryParser = {
-    val parser = new QueryParser(luceneVersion, fieldName, analyzer)
+    val parser = new QueryParser(fieldName, analyzer)
     parser.setDefaultOperator(QueryParser.Operator.AND)
     parser
   }
