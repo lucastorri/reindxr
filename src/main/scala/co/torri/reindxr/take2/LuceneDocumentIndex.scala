@@ -79,10 +79,10 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
   override def updateMetadata(documentId: DocumentId, newMetadata: Map[String, String]): IO[Unit] = ???
 
   private def search(query: String, limit: Int): Seq[SearchResult] =
-    supportedLanguages.values.par
-      .flatMap { language =>
-        val q = language.parseContentQuery(query)
-        withSearcher { searcher =>
+    withSearcher { searcher =>
+      supportedLanguages.values.par
+        .flatMap { language =>
+          val q = language.parseContentQuery(query)
           searcher
             .search(q, limit)
             .scoreDocs
@@ -90,15 +90,15 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
               language.code -> SearchResult(doc.score, q, searcher.getIndexReader, searcher.doc(doc.doc, fieldsToLoad), doc.doc)
             }
         }
-      }
-      .groupBy { case (_, result) => result.docId }
-      .values
-      .flatMap { results =>
-        val (highestScoreLanguage, _) = results.minBy { case (_, result) => -result.score }
-        results.toSeq.collect { case (`highestScoreLanguage`, result) => result }
-      }
-      .seq
-      .toSeq
+        .groupBy { case (_, result) => result.docId }
+        .values
+        .flatMap { results =>
+          val (highestScoreLanguage, _) = results.minBy { case (_, result) => -result.score }
+          results.toSeq.collect { case (`highestScoreLanguage`, result) => result }
+        }
+        .seq
+        .toSeq
+    }
 
   private def highlightWholeDocument(result: SearchResult): IO[DocumentMatch] =
     highlightDocument(result, snippetsOnly = false)
@@ -124,14 +124,15 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
   }
 
   private def searchInId(id: String, query: String): Option[SearchResult] =
-    supportedLanguages.values
-      .par
-      .flatMap { language =>
-        val q = new BooleanQuery.Builder()
-          .add(idQuery(id), BooleanClause.Occur.MUST)
-          .add(language.parseContentQuery(query), BooleanClause.Occur.SHOULD)
-          .build()
-        withSearcher { searcher =>
+    withSearcher { searcher =>
+      val idQ = idQuery(id)
+      supportedLanguages.values
+        .par
+        .flatMap { language =>
+          val q = new BooleanQuery.Builder()
+            .add(idQ, BooleanClause.Occur.MUST)
+            .add(language.parseContentQuery(query), BooleanClause.Occur.SHOULD)
+            .build()
           searcher
             .search(q, 1)
             .scoreDocs
@@ -140,11 +141,11 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
               SearchResult(d.score, q, searcher.getIndexReader, doc, d.doc)
             }
         }
-      }
-      .seq
-      .toSeq
-      .sortBy(result => -result.score)
-      .headOption
+        .seq
+        .toSeq
+        .sortBy(result => -result.score)
+        .headOption
+    }
 
   private def withSearcher[T](f: IndexSearcher => T): T =
     f(new IndexSearcher(DirectoryReader.open(luceneDirectory)))
