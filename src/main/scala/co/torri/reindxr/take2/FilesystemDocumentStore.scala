@@ -4,10 +4,9 @@ import java.io.{InputStream, OutputStream}
 import java.nio.file.{Files, Path, StandardOpenOption}
 import java.util.Properties
 
-import cats.effect.IO
+import cats.effect.{IO, Resource}
 
 import scala.jdk.CollectionConverters._
-import scala.util.Using
 
 
 class FilesystemDocumentStore(directory: Path) extends DocumentStore {
@@ -59,11 +58,17 @@ class FilesystemDocumentStore(directory: Path) extends DocumentStore {
   private class InternalFile(documentId: DocumentId, extension: String) {
     private val path = directory.resolve(s"${idHash(documentId)}$extension")
 
-    def in[A](f: InputStream => A): IO[A] = IO.fromTry(Using(in)(f))
+    def in[A](f: InputStream => A): IO[A] =
+      Resource
+        .fromAutoCloseable(IO(in))
+        .use(in => IO(f(in)))
 
     def in[A]: InputStream = Files.newInputStream(path)
 
-    def out[A](f: OutputStream => A): IO[A] = IO.fromTry(Using(Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING))(f))
+    def out[A](f: OutputStream => A): IO[A] =
+      Resource
+        .fromAutoCloseable(IO(Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)))
+        .use(out => IO(f(out)))
 
     def delete(): IO[Unit] = IO(Files.delete(path))
 

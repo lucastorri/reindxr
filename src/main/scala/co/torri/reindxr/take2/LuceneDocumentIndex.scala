@@ -2,7 +2,7 @@ package co.torri.reindxr.take2
 
 import java.nio.file.{Files, Path}
 
-import cats.effect.IO
+import cats.effect.{IO, Resource}
 import cats.implicits._
 import co.torri.reindxr.index.{SearchResult, TextWithOffsetsField}
 import org.apache.lucene.analysis.Analyzer
@@ -19,9 +19,8 @@ import org.apache.lucene.search.vectorhighlight.{FastVectorHighlighter, SimpleFr
 import org.apache.lucene.search.{BooleanClause, BooleanQuery, IndexSearcher, Query}
 import org.apache.lucene.store.FSDirectory
 
-import scala.jdk.CollectionConverters._
 import scala.collection.parallel.CollectionConverters._
-import scala.util.Using
+import scala.jdk.CollectionConverters._
 
 
 //TODO could store the document too instead of using a store to retrieve the content. Perhaps that's another implementation
@@ -63,7 +62,7 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
 
   override def snippets(query: String): IO[Seq[DocumentMatch]] =
     IO(search(query, 10)).flatMap { results =>
-      results.toList. map(highlightSnippets).sequence.map(_.toSeq)
+      results.toList.map(highlightSnippets).sequence.map(_.toSeq)
     }
 
   override def snippets(documentId: DocumentId, query: String): IO[Option[DocumentMatch]] =
@@ -150,13 +149,14 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
   private def withSearcher[T](f: IndexSearcher => T): T =
     f(new IndexSearcher(DirectoryReader.open(luceneDirectory)))
 
-  private def withWriter[T](analyzer: Analyzer)(f: IndexWriter => T): IO[T] = IO.fromTry {
+  private def withWriter[T](analyzer: Analyzer)(f: IndexWriter => T): IO[T] = {
     val config = new IndexWriterConfig(analyzer).setOpenMode(CREATE_OR_APPEND)
-    Using(new IndexWriter(luceneDirectory, config)) { writer =>
-      val result = f(writer)
-      writer.commit()
-      result
-    }
+    Resource.fromAutoCloseable(IO(new IndexWriter(luceneDirectory, config)))
+      .use { writer =>
+        val result = f(writer)
+        writer.commit()
+        IO(result)
+      }
   }
 }
 
