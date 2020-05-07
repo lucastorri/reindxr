@@ -23,47 +23,39 @@ object MatchedResponse {
     MatchedResponse(documentMatch.documentId.value, documentMatch.fragments)
 }
 
-case class HttpServer(reindxr: AccountId => IO[Option[Reindxr]], port: Int) extends LazyLogging {
+case class HttpServer(accountReindxr: AccountId => IO[Option[Reindxr]], port: Int) extends LazyLogging {
 
   private implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
   private implicit val concurrentEffect: ConcurrentEffect[IO] = IO.ioConcurrentEffect(contextShift)
   private implicit val timer: Timer[IO] = IO.timer(global)
 
-  private lazy val userNotFound: IO[Response[IO]] =
-    Forbidden(JsonResponses.error("user not found"))
+  private val userNotFound: IO[Response[IO]] =
+    Forbidden(JsonEncoder.error("User not found"))
 
   private val service: HttpRoutes[IO] = HttpRoutes.of[IO] {
-    case req@GET -> Root / username / "search" / query =>
-      json(req, username) { index =>
-        index.search(query).map(JsonResponses.encode)
+    case req@GET -> Root / accountId / "search" / query =>
+      withReindxr(req, accountId) { reindxr =>
+        reindxr.search(query)
       }
 
-    case req@GET -> Root / username / "snippets" / query =>
-      json(req, username) { index =>
-        index.snippets(query).map(JsonResponses.encode)
+    case req@GET -> Root / accountId / "snippets" / query =>
+      withReindxr(req, accountId) { reindxr =>
+        reindxr.snippets(query)
       }
 
-    case req@GET -> Root / username / "snippets" / documentId / query =>
-      json(req, username) { index =>
-        index.snippets(DocumentId(documentId), query).map(JsonResponses.encode)
+    case req@GET -> Root / accountId / "snippets" / documentId / query =>
+      withReindxr(req, accountId) { reindxr =>
+        reindxr.snippets(DocumentId(documentId), query)
       }
 
-    case req@GET -> Root / username / "hl" / documentId / query =>
-      json(req, username) { index =>
-        index.highlight(DocumentId(documentId), query).map(JsonResponses.encode)
+    case req@GET -> Root / accountId / "hl" / documentId / query =>
+      withReindxr(req, accountId) { reindxr =>
+        reindxr.highlight(DocumentId(documentId), query)
       }
 
     case _ =>
-      NotFound(JsonResponses.error("not found"))
+      NotFound(JsonEncoder.error("Not found"))
   }
-
-  private def json(req: Request[IO], username: String)(f: Reindxr => IO[Json]): IO[Response[IO]] =
-    reindxr(AccountId(username))
-      .flatMap {
-        case Some(index) => Ok(f(index))
-        case None => userNotFound
-      }
-      .handleErrorWith(e => InternalServerError(JsonResponses.error(e.getMessage)))
 
   private lazy val server =
     BlazeServerBuilder[IO](global)
@@ -74,6 +66,14 @@ case class HttpServer(reindxr: AccountId => IO[Option[Reindxr]], port: Int) exte
       .start
       .unsafeRunSync()
 
+  private def withReindxr[T: JsonEncoder](req: Request[IO], accountId: String)(f: Reindxr => IO[T]): IO[Response[IO]] =
+    accountReindxr(AccountId(accountId))
+      .flatMap {
+        case Some(reindxr) => Ok(f(reindxr).map(implicitly[JsonEncoder[T]].encode))
+        case None => userNotFound
+      }
+      .handleErrorWith(e => InternalServerError(JsonEncoder.error(e.getMessage)))
+
   def start(): Unit =
     server
 
@@ -82,16 +82,20 @@ case class HttpServer(reindxr: AccountId => IO[Option[Reindxr]], port: Int) exte
 
 }
 
-object JsonResponses {
+trait JsonEncoder[T] {
+  def encode(content: T): Json
+}
 
-  def encode(m: MatchedResponse): Json =
-    List(m).asJson
+object JsonEncoder {
 
-  def encode(m: DocumentMatch): Json =
-    encode(MatchedResponse(m))
-
-  def encode(s: Seq[DocumentMatch]): Json =
-    s.map(MatchedResponse(_)).asJson
+  implicit val matchedResponseEncoder: JsonEncoder[MatchedResponse] =
+    mr => List(mr).asJson
+  implicit val documentMatchEncoder: JsonEncoder[DocumentMatch] =
+    dm => matchedResponseEncoder.encode(MatchedResponse(dm))
+  implicit val documentMatchSeqEncoder: JsonEncoder[Seq[DocumentMatch]] = seq =>
+    seq.map(MatchedResponse(_)).asJson
+  implicit val optionalDocumentMatchEncoder: JsonEncoder[Option[DocumentMatch]] = dmOpt =>
+    documentMatchSeqEncoder.encode(dmOpt.toSeq)
 
   def error(error: String): Json =
     json"""{"error": $error}"""

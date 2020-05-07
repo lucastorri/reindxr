@@ -2,22 +2,24 @@ package co.torri.reindxr.take2
 
 import java.nio.file.{Files, Path, Paths}
 
-object Main {
+object Take2 {
+  val documentsDirectory: Path = Paths.get("/Users/lucastorri/tmp/docs")
+  val indexDirectory: Path = Paths.get("/Users/lucastorri/tmp/index")
+  val parser: DocumentParser = new TikaDocumentParser
+
+  def store(accountId: AccountId): DocumentStore =
+    new FilesystemDocumentStore(Files.createDirectories(documentsDirectory.resolve(accountId.value)))
+
+  def index(accountId: AccountId): DocumentIndex =
+    new LuceneDocumentIndex(Files.createDirectories(indexDirectory.resolve(accountId.value)), parser, store(accountId))
+
+  def reindxr(accountId: AccountId): Reindxr =
+    new ExternalIndexReindxr(store(accountId), index(accountId))
+
+  val default: Reindxr = reindxr(AccountId("default"))
+
   def main(args: Array[String]): Unit = {
-    val documentsDirectory: Path = Paths.get("/Users/lucastorri/tmp/docs")
-    val indexDirectory: Path = Paths.get("/Users/lucastorri/tmp/index")
-    val parser: DocumentParser = new TikaDocumentParser
 
-    def store(accountId: AccountId): DocumentStore =
-      new FilesystemDocumentStore(Files.createDirectories(documentsDirectory.resolve(accountId.value)))
-
-    def index(accountId: AccountId): DocumentIndex =
-      new LuceneDocumentIndex(Files.createDirectories(indexDirectory.resolve(accountId.value)), parser, store(accountId))
-
-    def reindxr(accountId: AccountId): Reindxr =
-      new ExternalIndexReindxr(store(accountId), index(accountId))
-
-    val default = reindxr(AccountId("default"))
 
     //    default.add(new Document {
     //      override def id: DocumentId = DocumentId("hi!")

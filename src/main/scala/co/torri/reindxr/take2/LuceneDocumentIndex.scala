@@ -20,6 +20,7 @@ import org.apache.lucene.search.{BooleanClause, BooleanQuery, IndexSearcher, Que
 import org.apache.lucene.store.FSDirectory
 
 import scala.jdk.CollectionConverters._
+import scala.collection.parallel.CollectionConverters._
 import scala.util.Using
 
 
@@ -62,7 +63,7 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
 
   override def snippets(query: String): IO[Seq[DocumentMatch]] =
     IO(search(query, 10)).flatMap { results =>
-      results.toList.map(highlightSnippets).sequence.map(_.toSeq)
+      results.toList. map(highlightSnippets).sequence.map(_.toSeq)
     }
 
   override def snippets(documentId: DocumentId, query: String): IO[Option[DocumentMatch]] =
@@ -78,9 +79,8 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
 
   override def updateMetadata(documentId: DocumentId, newMetadata: Map[String, String]): IO[Unit] = ???
 
-  //TODO use ParSeq
   private def search(query: String, limit: Int): Seq[SearchResult] =
-    supportedLanguages.values
+    supportedLanguages.values.par
       .flatMap { language =>
         val q = language.parseContentQuery(query)
         withSearcher { searcher =>
@@ -93,12 +93,12 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
         }
       }
       .groupBy { case (_, result) => result.docId }
-      .view
       .values
       .flatMap { results =>
         val (highestScoreLanguage, _) = results.minBy { case (_, result) => -result.score }
         results.toSeq.collect { case (`highestScoreLanguage`, result) => result }
       }
+      .seq
       .toSeq
 
   private def highlightWholeDocument(result: SearchResult): IO[DocumentMatch] =
@@ -126,7 +126,7 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
 
   private def searchInId(id: String, query: String): Option[SearchResult] =
     supportedLanguages.values
-      .toSeq
+      .par
       .flatMap { language =>
         val q = new BooleanQuery.Builder()
           .add(idQuery(id), BooleanClause.Occur.MUST)
@@ -142,6 +142,8 @@ class LuceneDocumentIndex(directory: Path, parser: DocumentParser, store: Docume
             }
         }
       }
+      .seq
+      .toSeq
       .sortBy(result => -result.score)
       .headOption
 
